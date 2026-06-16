@@ -1,0 +1,40 @@
+{
+  "config": {
+    "window_seconds": 30.0,
+    "target_fs": 128.0,
+    "class_weighted_loss": true,
+    "class_weights": [0.388, 4.384, 5.000],
+    "dropout": 0.2,
+    "early_stopping_patience": 8,
+    "splits_note": "test = [228, 230, 231, 232, 233, 234] — contained no AF samples (failure mode)"
+  },
+  "training": {
+    "best_val_macro_f1": 0.6115,
+    "best_val_epoch": 5,
+    "stopped_epoch": 13,
+    "stop_reason": "early_stopping_patience"
+  },
+  "evaluation": {
+    "uq_method": "mc_dropout",
+    "mc_samples": 30,
+    "test_n": 360,
+    "accuracy": 0.2416666666666667,
+    "ece": 0.509057694590754,
+    "brier_score": 0.9635581226883052,
+    "aurc": 0.5383403733784461,
+    "mean_predictive_entropy": 0.6159220933914185,
+    "mean_mutual_info": 0.01522101927548647,
+    "sel_acc@0.5": 0.3944444444444444,
+    "sel_acc@0.7": 0.3055555555555556,
+    "sel_acc@0.8": 0.2777777777777778,
+    "sel_acc@0.9": 0.25,
+    "sel_acc@0.95": 0.24269005847953218,
+    "sel_acc@1.0": 0.2416666666666667,
+    "per_class": {
+      "NSR": {"n": 238, "accuracy": 0.31092436974789917, "mean_entropy": 0.6592390537261963},
+      "AF":  {"n": 0,   "accuracy": null,                "mean_entropy": null,               "note": "AF absent from this test split — root cause of low accuracy"},
+      "Other": {"n": 122, "accuracy": 0.10655737704918032, "mean_entropy": 0.5314186215400696}
+    }
+  },
+  "verdict": "Failed split: no AF in test set; model over-predicted AF due to heavy class weighting and was penalised on every test sample."
+}

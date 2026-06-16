@@ -1,0 +1,43 @@
+{
+  "config": {
+    "window_seconds": 10.0,
+    "target_fs": 128.0,
+    "class_weighted_loss": false,
+    "dropout": 0.4,
+    "early_stopping_patience": 5,
+    "splits_note": "AF redistributed across train/val/test (train: 202,203; val: 201,219,222,213; test: 210,221,200)",
+    "known_issues": [
+      "MITBIHSegmentDataset did not pass window_seconds through to segment_record (fixed post-run, commit follows); v1 windows were effectively 30s truncated to 10s, not native 10s segments. Total segment count was unchanged at 2880."
+    ]
+  },
+  "training": {
+    "best_val_macro_f1": 0.2354,
+    "best_val_epoch": 1,
+    "stopped_epoch": 6,
+    "stop_reason": "early_stopping_patience",
+    "training_curve_note": "train F1 flat at ~0.31, val F1 flat at ~0.24 across all epochs — model never moved off mode-collapse to majority class."
+  },
+  "evaluation": {
+    "uq_method": "mc_dropout",
+    "mc_samples": 30,
+    "test_n": 180,
+    "accuracy": 0.16111111111111112,
+    "ece": 0.7262003577417799,
+    "brier_score": 1.4372505816295056,
+    "aurc": 0.8558465620970801,
+    "mean_predictive_entropy": 0.41801291704177856,
+    "mean_mutual_info": 0.009926005266606808,
+    "sel_acc@0.5": 0.15555555555555556,
+    "sel_acc@0.7": 0.1507936507936508,
+    "sel_acc@0.8": 0.1527777777777778,
+    "sel_acc@0.9": 0.14814814814814814,
+    "sel_acc@0.95": 0.1578947368421053,
+    "sel_acc@1.0": 0.1611111111111111,
+    "per_class": {
+      "NSR":   {"n": 29,  "accuracy": 1.0,   "mean_entropy": 0.42118361592292786},
+      "AF":    {"n": 117, "accuracy": 0.0,   "mean_entropy": 0.4149893820285797},
+      "Other": {"n": 34,  "accuracy": 0.0,   "mean_entropy": 0.42571312189102173}
+    }
+  },
+  "verdict": "Complete mode collapse to NSR. Removing class weighting let the model bet on the train majority class for every input. Predictive entropy ranking was uninformative (AURC 0.86) — selective prediction cannot rescue an undertrained model."
+}

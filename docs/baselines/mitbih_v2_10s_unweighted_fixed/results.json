@@ -1,0 +1,48 @@
+{
+  "config": {
+    "window_seconds": 10.0,
+    "target_fs": 128.0,
+    "class_weighted_loss": false,
+    "dropout": 0.4,
+    "early_stopping_patience": 5,
+    "splits_note": "AF redistributed across train/val/test (train: 202,203; val: 201,219,222,213; test: 210,221,200)",
+    "loader_state": "post-bugfix: window_seconds correctly propagated to segment_record"
+  },
+  "dataset": {
+    "total_segments": 8640,
+    "class_counts": {"NSR": 6300, "AF": 790, "Other": 1550},
+    "train": 6660,
+    "val": 720,
+    "test": 540
+  },
+  "training": {
+    "best_val_macro_f1": 0.3900,
+    "best_val_epoch": 8,
+    "stopped_epoch": 13,
+    "stop_reason": "early_stopping_patience",
+    "training_curve_note": "Train F1 climbed 0.32 -> 0.72 over 13 epochs (model is learning the training distribution). Val F1 peaked at 0.39 then plateaued. Train-val loss gap widened from epoch 6 onward (~0.32 train vs ~2.2 val) — classic overfitting to subject-specific AF morphology in train records 202 and 203."
+  },
+  "evaluation": {
+    "uq_method": "mc_dropout",
+    "mc_samples": 30,
+    "test_n": 540,
+    "accuracy": 0.16666666666666666,
+    "ece": 0.676906647671152,
+    "brier_score": 1.4029274224788495,
+    "aurc": 0.8875734489232388,
+    "mean_predictive_entropy": 0.42952048778533936,
+    "mean_mutual_info": 0.041314657777547836,
+    "sel_acc@0.5": 0.11111111111111116,
+    "sel_acc@0.7": 0.12698412698412698,
+    "sel_acc@0.8": 0.14814814814814814,
+    "sel_acc@0.9": 0.15226337448559668,
+    "sel_acc@0.95": 0.15009746588693962,
+    "sel_acc@1.0": 0.16666666666666663,
+    "per_class": {
+      "NSR":   {"n": 88,  "accuracy": 1.0,                  "mean_entropy": 0.5126566886901855},
+      "AF":    {"n": 351, "accuracy": 0.0,                  "mean_entropy": 0.36077991127967834},
+      "Other": {"n": 101, "accuracy": 0.019801980198019802, "mean_entropy": 0.5959754586219788}
+    }
+  },
+  "verdict": "Model successfully overfits training AF morphology (train F1 0.72) but fails to generalize to test-set AF records — collapses to majority-class prediction on test. AURC of 0.888 confirms uncertainty ranking is also uninformative: notably, mean entropy on AF test samples (0.36) is LOWER than on NSR (0.51), meaning the model is *confidently* wrong on AF. This is the most diagnostic of the three runs and the cleanest motivation for the rPPG path: 3-record AF test from 32 train records is below the cohort-size threshold needed to learn cross-subject AF morphology."
+}

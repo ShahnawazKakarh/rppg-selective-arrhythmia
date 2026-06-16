@@ -133,14 +133,42 @@ Full methodology and rationale in [`docs/proposal.md`](docs/proposal.md).
 
 ## Findings
 
-> No empirical results to report yet. This section will be populated as experiments complete. Intentionally left empty rather than filled with simulated or estimated numbers.
+### MIT-BIH pipeline-validation baseline (open-data scaffold)
+
+Three configurations were run on MIT-BIH to validate that the data + classifier + UQ + selective-evaluation stack end-to-end produces real, written artefacts. **All three produced sub-random test accuracy and are reported here as methodological baselines, not as performance baselines.** Raw `results.json` for each run is pinned in [`docs/baselines/`](docs/baselines/).
+
+| Config | Window | Weighting | Train F1 → | Test acc | AURC | ECE | NSR / AF / Other acc | Verdict |
+|---|---:|:---:|---:|---:|---:|---:|---|---|
+| [`v0_30s_weighted`](docs/baselines/mitbih_v0_30s_weighted/results.json) | 30 s | weighted | n/a → 0.61 val | 24.2 % | 0.538 | 0.509 | 31 % / **n/a** / 11 % | Test split had **no AF** — naive split masked behaviour |
+| [`v1_10s_unweighted`](docs/baselines/mitbih_v1_10s_unweighted/results.json) | 10 s* | none | 0.31 → 0.24 val | 16.1 % | 0.856 | 0.726 | 100 % / 0 % / 0 % | **Mode collapse** — model never learned (train F1 flat) |
+| [`v2_10s_unweighted_fixed`](docs/baselines/mitbih_v2_10s_unweighted_fixed/results.json) | 10 s | none | **0.32 → 0.72** → 0.39 val | 16.7 % | 0.677 | 0.888 | 100 % / 0 % / 2 % | **Failed subject-disjoint generalization** — model overfits train AF, collapses on test |
+
+*<sub>v1 was nominally 10 s but a loader bug truncated 30 s windows to 10 s rather than re-segmenting; the bug is fixed in v2 and in the current codebase.</sub>*
+
+The failures themselves are the finding. Five concrete lessons feed forward into the rPPG-specific design:
+
+1. **Subject-disjoint splits in small cohorts can drop entire classes from a split.** A naive split of MIT-BIH left zero AF in test (v0). The rPPG datasets (MCD-rPPG, OBF) need verified per-split class coverage *before* training begins.
+2. **Class-weighted CE on sparse minorities overpredicts the minority; removing it collapses to the majority.** Neither extreme is acceptable. Focal loss or progressive resampling are the right tools, not a CE weight scalar.
+3. **Selective prediction cannot rescue an undertrained model (v1).** When the classifier has not learned the task, the uncertainty ranking it produces is also uninformative — abstention provides no benefit.
+4. **Subject-disjoint generalization needs cohort size (v2).** With the loader bug fixed and 8,640 segments available, the model successfully overfits training AF morphology (train F1 0.72) yet fails to generalize to three held-out AF records. This is the *cleanest* motivation for moving to rPPG: MCD-rPPG offers 600 subjects, OBF supplies clinically-graded AF — both above the cohort-size threshold that MIT-BIH cannot meet.
+5. **An undertrained model can be *confidently* wrong (v2).** Mean predictive entropy on misclassified AF (0.36 nats) is *lower* than on correctly-classified NSR (0.51 nats) — the model is most confident exactly where it is wrong. This is the precise pathology that selective prediction is supposed to detect, and v2's AURC of 0.888 quantifies how badly entropy-based ranking fails when the underlying model is broken. This strengthens the J-BHI framing rather than weakening it: calibration analysis is the contribution, not point accuracy.
+
+MIT-BIH is parked. The next experimental phase targets the actual research path on rPPG data.
+
+### Phase 1 (rPPG, healthy cohort) — not yet run
+
+Results on MCD-rPPG and rPPG-10 will be added here once the rPPG extractor + Dataset pipeline lands. Reporting will follow the structure planned below.
+
+### Phase 2 (rPPG, AF detection) — not yet run
+
+Results on OBF will be added here once data access is granted. Same reporting structure.
 
 Planned reporting structure (kept here as a placeholder so the eventual content has a fixed home):
 
-- **Baseline performance.** Multi-class accuracy, macro F1, and per-class precision/recall on MCD-rPPG, rPPG-10, and OBF.
+- **Baseline performance.** Multi-class accuracy, macro F1, and per-class precision/recall.
 - **Selective performance.** Risk-coverage curves with bootstrap CIs; AURC per UQ method; selective accuracy at 70 / 80 / 90 / 95 percent coverage.
 - **Calibration.** ECE and Brier score per method, with reliability diagrams.
-- **Signal-quality ablation.** Selective performance with quality_weight ∈ {0, 0.15, 0.3, 0.5, 0.7, 1.0}, isolating the contribution of the SQI signal.
+- **Signal-quality ablation.** Selective performance with `quality_weight ∈ {0, 0.15, 0.3, 0.5, 0.7, 1.0}`, isolating the contribution of the SQI signal.
 - **Demographic stratification.** Selective performance stratified by skin-tone band, age, and lighting condition where metadata permits.
 
 ## Roadmap
@@ -153,11 +181,16 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] UQ heads: MC Dropout, Deep Ensembles, Evidential DL, Conformal Prediction.
 - [x] Signal-quality-aware deferral policy.
 - [x] Unit tests for selective metrics and conformal prediction.
+- [x] MIT-BIH downloader and PyTorch `Dataset`; subject-disjoint splits.
+- [x] Training loop with class-weighted CE, AdamW + cosine, early stopping, W&B optional, checkpointing.
+- [x] Selective-evaluation script producing `results.json`, `risk_coverage.csv`, `reliability.csv`, `predictions.csv`.
+- [x] First end-to-end run on MIT-BIH (open-data scaffold) — two configurations logged in [`docs/baselines/`](docs/baselines/). Both produced sub-random test accuracy; failures used to inform downstream design (see [Findings](#findings)).
+- [ ] Per-split class-coverage verification utility (catch the v0 failure mode before training).
+- [ ] Focal-loss / progressive-resampling training option (replacing CE-weight scalar).
 - [ ] MediaPipe-based face-ROI extraction wired into the dataset pipeline.
 - [ ] PhysNet learned rPPG extractor.
 - [ ] SNGP head — spectral-normalized backbone + random-feature GP.
 - [ ] MCD-rPPG dataset loader (layout-specific code finalized after download).
-- [ ] Training loop with W&B logging.
 - [ ] Phase-1 results on MCD-rPPG / rPPG-10 (healthy-cohort pipeline validation).
 - [ ] OBF data access request submitted.
 - [ ] Phase-2 results on OBF (AF classification).

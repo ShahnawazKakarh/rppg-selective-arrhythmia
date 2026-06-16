@@ -1,0 +1,55 @@
+# MIT-BIH baseline — end-to-end validation of the pipeline on fully-open ECG data.
+# Same classifier, UQ, and selective stack that will later run on rPPG inputs.
+
+experiment:
+  name: mitbih_baseline
+  seed: 42
+  device: auto   # "cuda" / "mps" / "cpu" — resolved at runtime
+
+data:
+  source: mitbih
+  root: data/raw/mitbih
+  target_fs: 128.0
+  window_seconds: 10.0
+  # Subject-disjoint splits with AF-bearing records distributed across all
+  # three splits. AF-bearing records in MIT-BIH: 201, 202, 203, 210, 219,
+  # 221, 222 (record 217 is excluded as predominantly paced). Distributing
+  # them ensures test never has zero positives — a failure mode of the
+  # original split.
+  splits:
+    train:
+      [100, 101, 103, 105, 106, 108, 109, 111, 112, 113, 114, 115, 116, 117,
+       118, 119, 121, 122, 123, 124, 202, 203, 205, 207, 208, 209,
+       212, 214, 215, 220, 223, 228, 230, 231, 232, 233, 234]
+    val:
+      [201, 219, 222, 213]
+    test:
+      [210, 221, 200]
+
+classifier:
+  type: cnn1d_transformer
+  in_channels: 1
+  num_classes: 3
+  conv_channels: [32, 64, 128]
+  transformer_layers: 2
+  transformer_heads: 4
+  dropout: 0.4
+
+training:
+  epochs: 30
+  batch_size: 64
+  optimizer: adamw
+  lr: 0.0003
+  weight_decay: 0.0001
+  scheduler: cosine
+  early_stopping_patience: 5
+  class_weighted_loss: false
+
+logging:
+  use_wandb: false   # set true and provide entity to log
+  project: rppg-selective-arrhythmia
+  entity: null
+  log_dir: runs
+
+checkpoint:
+  save_best_on: val_macro_f1

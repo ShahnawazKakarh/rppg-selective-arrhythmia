@@ -22,6 +22,7 @@ mediapipe>=0.10.9
 # ML utilities
 scikit-learn>=1.4
 
+
 # Visualization & tracking
 matplotlib>=3.8
 seaborn>=0.13
