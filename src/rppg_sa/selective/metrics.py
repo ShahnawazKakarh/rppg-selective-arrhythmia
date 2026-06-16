@@ -70,7 +70,9 @@ def risk_coverage_curve(
     risk = 1.0 - selective_acc
 
     # AURC: trapezoidal integration over coverage.
-    aurc = float(np.trapz(risk, coverage))
+    # np.trapezoid replaces np.trapz (removed in NumPy 2.0).
+    _trapezoid = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
+    aurc = float(_trapezoid(risk, coverage))
     return RiskCoverage(coverage=coverage, risk=risk, aurc=aurc)
 
 
