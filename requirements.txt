@@ -1,0 +1,28 @@
+# Core
+numpy>=1.26
+scipy>=1.11
+pandas>=2.1
+pyyaml>=6.0
+tqdm>=4.66
+h5py>=3.10
+
+# Deep learning
+torch>=2.2
+torchvision>=0.17
+torchaudio>=2.2
+
+# Signal processing & physiology
+neurokit2>=0.2.7
+wfdb>=4.1
+
+# Computer vision
+opencv-python>=4.9
+mediapipe>=0.10.9
+
+# ML utilities
+scikit-learn>=1.4
+
+# Visualization & tracking
+matplotlib>=3.8
+seaborn>=0.13
+wandb>=0.16

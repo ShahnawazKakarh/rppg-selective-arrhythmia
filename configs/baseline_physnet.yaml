@@ -1,0 +1,44 @@
+# Baseline: PhysNet rPPG extractor + 1D-CNN classifier, no UQ.
+# Used as the reference point for all UQ comparisons.
+
+experiment:
+  name: baseline_physnet
+  seed: 42
+  device: cuda
+
+data:
+  train_datasets: [mcd_rppg]
+  val_datasets: [rppg_10]
+  test_datasets: [obf]      # filled in once OBF access is granted
+  segment_seconds: 30
+  target_fps: 30
+  sample_rate_hz: 30
+
+extractor:
+  type: physnet
+  pretrained: false
+  input_resolution: [128, 128]
+  temporal_length: 900       # 30 s @ 30 fps
+
+classifier:
+  type: cnn1d_transformer
+  in_channels: 1
+  num_classes: 3             # NSR, AF, Other
+  conv_channels: [32, 64, 128]
+  transformer_layers: 2
+  transformer_heads: 4
+  dropout: 0.1
+
+training:
+  epochs: 50
+  batch_size: 32
+  optimizer: adamw
+  lr: 0.0003
+  weight_decay: 0.0001
+  scheduler: cosine
+  early_stopping_patience: 10
+
+logging:
+  use_wandb: true
+  project: rppg-selective-arrhythmia
+  entity: null              # set to your W&B entity

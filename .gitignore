@@ -181,6 +181,39 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# --- rppg-selective-arrhythmia project-specific ---
+
+# Datasets (raw + processed)
+data/
+!data/.gitkeep
+
+# Model checkpoints and run artefacts
+runs/
+checkpoints/
+lightning_logs/
+
+# Experiment trackers
+wandb/
+mlruns/
+
+# Cached extracted signals
+*.npy
+*.npz
+*.h5
+*.hdf5
+
+# Local secrets
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+
 # PyCharm
 #   JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #   be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
