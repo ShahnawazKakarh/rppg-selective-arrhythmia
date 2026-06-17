@@ -67,23 +67,39 @@ def extract_roi_signals(video_path: str, max_frames: int | None = None) -> ROIMe
         ROIMeanRGB container with three (T, 3) arrays and metadata.
     """
     # Lazy import: mediapipe is heavy and not needed for every code path.
-    import mediapipe as mp
+    # Defensive against multiple mediapipe layouts:
+    #   - 0.10.x exposes `mediapipe.solutions.face_mesh`
+    #   - some 0.11.x builds expose it as `mediapipe.python.solutions.face_mesh`
+    #   - 0.11+ Tasks API moves the recommended path to `mediapipe.tasks.python.vision`
+    # We try the classic paths first since the rest of this function uses the
+    # FaceMesh solution API. If both fail, we surface a clear actionable error.
+    try:
+        from mediapipe.solutions import face_mesh as mp_face_mesh
+    except ImportError:
+        try:
+            from mediapipe.python.solutions import face_mesh as mp_face_mesh  # type: ignore[no-redef]
+        except ImportError as e:
+            raise ImportError(
+                "Could not import MediaPipe FaceMesh. The installed mediapipe "
+                "version may have dropped the legacy solutions API. "
+                "Pin a compatible version with: pip install 'mediapipe==0.10.18'."
+            ) from e
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise IOError(f"Could not open video: {video_path}")
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    if max_frames is not None:
-        n_frames = min(n_frames, max_frames)
+    # cv2.CAP_PROP_FRAME_COUNT is unreliable for many AVI codecs (often 0 or -1).
+    # Accumulate frames dynamically instead of preallocating.
+    reported_n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    hard_cap = max_frames if max_frames is not None else 10**9
 
-    forehead = np.zeros((n_frames, 3), dtype=np.float64)
-    left_cheek = np.zeros((n_frames, 3), dtype=np.float64)
-    right_cheek = np.zeros((n_frames, 3), dtype=np.float64)
-    valid = np.zeros(n_frames, dtype=bool)
+    forehead_list: list[np.ndarray] = []
+    left_cheek_list: list[np.ndarray] = []
+    right_cheek_list: list[np.ndarray] = []
+    valid_list: list[bool] = []
 
-    mp_face_mesh = mp.solutions.face_mesh
     with mp_face_mesh.FaceMesh(
         static_image_mode=False,
         max_num_faces=1,
@@ -91,7 +107,7 @@ def extract_roi_signals(video_path: str, max_frames: int | None = None) -> ROIMe
         min_detection_confidence=0.5,
         min_tracking_confidence=0.5,
     ) as mesh:
-        for t in range(n_frames):
+        while len(valid_list) < hard_cap:
             ok, frame = cap.read()
             if not ok:
                 break
@@ -99,16 +115,34 @@ def extract_roi_signals(video_path: str, max_frames: int | None = None) -> ROIMe
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             result = mesh.process(rgb)
             if not result.multi_face_landmarks:
+                # Preserve frame index alignment with zero rows.
+                forehead_list.append(np.zeros(3, dtype=np.float64))
+                left_cheek_list.append(np.zeros(3, dtype=np.float64))
+                right_cheek_list.append(np.zeros(3, dtype=np.float64))
+                valid_list.append(False)
                 continue
             lms = result.multi_face_landmarks[0].landmark
             pts = np.array([[lm.x * w, lm.y * h] for lm in lms], dtype=np.float64)
 
-            forehead[t] = _polygon_mean_rgb(frame, pts[FOREHEAD_LANDMARKS])
-            left_cheek[t] = _polygon_mean_rgb(frame, pts[LEFT_CHEEK_LANDMARKS])
-            right_cheek[t] = _polygon_mean_rgb(frame, pts[RIGHT_CHEEK_LANDMARKS])
-            valid[t] = True
+            forehead_list.append(_polygon_mean_rgb(frame, pts[FOREHEAD_LANDMARKS]))
+            left_cheek_list.append(_polygon_mean_rgb(frame, pts[LEFT_CHEEK_LANDMARKS]))
+            right_cheek_list.append(_polygon_mean_rgb(frame, pts[RIGHT_CHEEK_LANDMARKS]))
+            valid_list.append(True)
 
     cap.release()
+
+    if not valid_list:
+        raise RuntimeError(
+            f"Read zero frames from {video_path}. "
+            f"OpenCV reported fps={fps}, frame_count={reported_n}. "
+            "The container or codec may be unsupported by your OpenCV build."
+        )
+
+    forehead = np.stack(forehead_list, axis=0)
+    left_cheek = np.stack(left_cheek_list, axis=0)
+    right_cheek = np.stack(right_cheek_list, axis=0)
+    valid = np.asarray(valid_list, dtype=bool)
+
     return ROIMeanRGB(
         forehead=forehead,
         left_cheek=left_cheek,

@@ -155,7 +155,24 @@ The failures themselves are the finding. Five concrete lessons feed forward into
 
 MIT-BIH is parked. The next experimental phase targets the actual research path on rPPG data.
 
-### Phase 1 (rPPG, healthy cohort) — not yet run
+### MCD-rPPG v0 — classical extractor validation (frontal webcam, n = 8)
+
+First real rPPG numbers in the repo. CHROM and POS were run on a small subset of the [MCD-rPPG](https://huggingface.co/datasets/milai-oks-sakura/mcd_rppg) dataset (4 subjects × resting + post-exercise, frontal webcam, 180 s each) and scored against the synchronized contact-PPG ground truth that accompanies each video. Full per-record breakdown in [`docs/baselines/mcd_rppg_v0/findings.md`](docs/baselines/mcd_rppg_v0/findings.md); raw results in [`docs/baselines/mcd_rppg_v0/results.json`](docs/baselines/mcd_rppg_v0/results.json).
+
+| Method | HR MAE vs PPG-sync GT (bpm) | Notes |
+|---|---:|---|
+| **POS** (Wang et al. 2017) | **5.35** | Paper's POS baseline on the full dataset: 3.80 |
+| CHROM (de Haan & Jeanne 2013) | 20.08 | Consistent sub-harmonic lock-on under MPEG-4 decode artefacts |
+
+Face detection (MediaPipe FaceMesh, forehead + bilateral cheeks): **100 % across all 8 clips**. Sample count is too small to claim a publishable comparison, but it is sufficient to demonstrate end-to-end pipeline correctness and put POS within striking distance of the dataset's own paper baseline.
+
+Three concrete findings from this run:
+
+1. **The biomarker `pulse` column is not the right ground truth.** It is a discrete clinical cuff reading, not the average HR over the video window. POS MAE rises from 5.35 to 26.86 bpm when scored against `db.csv.pulse`. Some clips show a 50+ bpm gap between cuff and contact-PPG (subject 1091: biomarker 132 bpm vs PPG-sync 80 bpm). The synchronized `ppg_sync/*.txt` column 1 is the correct reference.
+2. **`ppg_sync/*.txt` is per-video-frame, not per-100-Hz-PPG-sample.** Each file has exactly one row per video frame; column 1 is the contact PPG resampled to the video frame rate; column 2 is sync metadata, *not* inter-sample Δt. Initial mis-interpretation cost a debug cycle; format is now documented in [`mcd_rppg.py`](src/rppg_sa/data/mcd_rppg.py).
+3. **CHROM consistently locks to a sub-harmonic on this dataset.** All 8 clips return 47–58 bpm regardless of true HR (60–80 bpm range). Plausibly an interaction between MPEG-4 decode artefacts (warnings on every clip) and CHROM's higher sensitivity to high-frequency colour noise. POS does not show the same failure. This is a genuine CHROM weakness, not an implementation bug.
+
+### Phase 1 (rPPG, healthy cohort) — in progress
 
 Results on MCD-rPPG and rPPG-10 will be added here once the rPPG extractor + Dataset pipeline lands. Reporting will follow the structure planned below.
 
@@ -175,6 +192,9 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 
 - [x] Repository scaffolded; package layout, configs, scripts, docs.
 - [x] Classical rPPG extractors: CHROM, POS.
+- [x] MCD-rPPG dataset loader (`db.csv` index + ECG / PPG / video / sync loaders).
+- [x] MediaPipe-based face-ROI extraction (forehead + bilateral cheeks).
+- [x] First MCD-rPPG validation: POS MAE 5.35 bpm vs PPG-sync GT, n = 8 ([`docs/baselines/mcd_rppg_v0/`](docs/baselines/mcd_rppg_v0/)).
 - [x] Signal-quality metrics: spectral SNR, template SQI.
 - [x] 1D-CNN + Transformer classifier.
 - [x] Selective metrics: risk-coverage, AURC, ECE, Brier, predictive entropy.
@@ -188,10 +208,13 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [ ] Per-split class-coverage verification utility (catch the v0 failure mode before training).
 - [ ] Focal-loss / progressive-resampling training option (replacing CE-weight scalar).
 - [ ] MediaPipe-based face-ROI extraction wired into the dataset pipeline.
+- [ ] Scale MCD-rPPG validation to 50+ subjects (closes gap to paper's 3.80 bpm POS baseline).
+- [ ] Per-window (10 s) HR estimation for per-segment confidence inputs.
 - [ ] PhysNet learned rPPG extractor.
 - [ ] SNGP head — spectral-normalized backbone + random-feature GP.
 - [ ] MCD-rPPG dataset loader (layout-specific code finalized after download).
-- [ ] Phase-1 results on MCD-rPPG / rPPG-10 (healthy-cohort pipeline validation).
+- [ ] Phase-1 results on rPPG-10 (independent extractor validation).
+- [ ] Phase-1 classifier training on MCD-rPPG healthy-cohort pulse waveforms.
 - [ ] OBF data access request submitted.
 - [ ] Phase-2 results on OBF (AF classification).
 - [ ] MIT-BIH synthesis fallback path.

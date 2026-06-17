@@ -1,0 +1,338 @@
+{
+  "n_records": 8,
+  "primary_ground_truth": "ppg_sync",
+  "chrom_mae_vs_ppg_sync_bpm": 20.078613281250007,
+  "pos_mae_vs_ppg_sync_bpm": 5.345214843750003,
+  "chrom_mae_vs_biomarker_bpm": 41.94921875,
+  "pos_mae_vs_biomarker_bpm": 26.864257812499996,
+  "per_record": [
+    {
+      "patient_id": "1020",
+      "step": "after",
+      "camera": "FullHDwebcam",
+      "view": "front",
+      "video_fps": 29.9,
+      "video_n_frames": 5383,
+      "video_duration_s": 180.03344481605353,
+      "face_detection_rate": 1.0,
+      "biomarker_hr_bpm": 100.0,
+      "ppg_sync": {
+        "hr_bpm": 77.08593750000001,
+        "snr_db": 17.83209682909752,
+        "template_sqi": 0.9285206048777548,
+        "n_samples": 5383,
+        "sampled_at_video_fps": 29.9
+      },
+      "chrom": {
+        "hr_bpm": 49.0546875,
+        "hr_error_vs_ppg_sync_bpm": -28.031250000000014,
+        "abs_hr_error_vs_ppg_sync_bpm": 28.031250000000014,
+        "hr_error_vs_biomarker_bpm": -50.9453125,
+        "abs_hr_error_vs_biomarker_bpm": 50.9453125,
+        "snr_db": 8.604370656118856,
+        "template_sqi": 0.6279806078197342
+      },
+      "pos": {
+        "hr_bpm": 77.08593750000001,
+        "hr_error_vs_ppg_sync_bpm": 0.0,
+        "abs_hr_error_vs_ppg_sync_bpm": 0.0,
+        "hr_error_vs_biomarker_bpm": -22.914062499999986,
+        "abs_hr_error_vs_biomarker_bpm": 22.914062499999986,
+        "snr_db": 7.584708943456483,
+        "template_sqi": 0.6927531345526117
+      },
+      "biomarkers": {
+        "age": 23.0,
+        "sex": "F",
+        "bmi": 19.031141868512112
+      }
+    },
+    {
+      "patient_id": "1020",
+      "step": "before",
+      "camera": "FullHDwebcam",
+      "view": "front",
+      "video_fps": 29.9,
+      "video_n_frames": 5382,
+      "video_duration_s": 180.0,
+      "face_detection_rate": 1.0,
+      "biomarker_hr_bpm": 83.0,
+      "ppg_sync": {
+        "hr_bpm": 77.08593750000001,
+        "snr_db": 22.61950797800032,
+        "template_sqi": 0.8759732808873636,
+        "n_samples": 5382,
+        "sampled_at_video_fps": 29.9
+      },
+      "chrom": {
+        "hr_bpm": 52.55859375000001,
+        "hr_error_vs_ppg_sync_bpm": -24.527343750000007,
+        "abs_hr_error_vs_ppg_sync_bpm": 24.527343750000007,
+        "hr_error_vs_biomarker_bpm": -30.441406249999993,
+        "abs_hr_error_vs_biomarker_bpm": 30.441406249999993,
+        "snr_db": 8.089619980010339,
+        "template_sqi": 0.6435176696279528
+      },
+      "pos": {
+        "hr_bpm": 77.08593750000001,
+        "hr_error_vs_ppg_sync_bpm": 0.0,
+        "abs_hr_error_vs_ppg_sync_bpm": 0.0,
+        "hr_error_vs_biomarker_bpm": -5.914062499999986,
+        "abs_hr_error_vs_biomarker_bpm": 5.914062499999986,
+        "snr_db": 9.11492453870494,
+        "template_sqi": 0.6771659921936312
+      },
+      "biomarkers": {
+        "age": 23.0,
+        "sex": "F",
+        "bmi": 19.031141868512112
+      }
+    },
+    {
+      "patient_id": "1024",
+      "step": "after",
+      "camera": "FullHDwebcam",
+      "view": "front",
+      "video_fps": 29.9,
+      "video_n_frames": 5362,
+      "video_duration_s": 179.33110367892976,
+      "face_detection_rate": 1.0,
+      "biomarker_hr_bpm": 88.0,
+      "ppg_sync": {
+        "hr_bpm": 71.830078125,
+        "snr_db": 19.817407207526568,
+        "template_sqi": 0.6361999955528871,
+        "n_samples": 5362,
+        "sampled_at_video_fps": 29.9
+      },
+      "chrom": {
+        "hr_bpm": 47.30273437500001,
+        "hr_error_vs_ppg_sync_bpm": -24.527343749999993,
+        "abs_hr_error_vs_ppg_sync_bpm": 24.527343749999993,
+        "hr_error_vs_biomarker_bpm": -40.69726562499999,
+        "abs_hr_error_vs_biomarker_bpm": 40.69726562499999,
+        "snr_db": 18.916350160654886,
+        "template_sqi": 0.8030073185101297
+      },
+      "pos": {
+        "hr_bpm": 50.806640625,
+        "hr_error_vs_ppg_sync_bpm": -21.0234375,
+        "abs_hr_error_vs_ppg_sync_bpm": 21.0234375,
+        "hr_error_vs_biomarker_bpm": -37.193359375,
+        "abs_hr_error_vs_biomarker_bpm": 37.193359375,
+        "snr_db": 8.887867029179416,
+        "template_sqi": 0.7219135420030449
+      },
+      "biomarkers": {
+        "age": 19.0,
+        "sex": "F",
+        "bmi": 17.056176513282043
+      }
+    },
+    {
+      "patient_id": "1024",
+      "step": "before",
+      "camera": "FullHDwebcam",
+      "view": "front",
+      "video_fps": 24.0,
+      "video_n_frames": 5365,
+      "video_duration_s": 223.54166666666666,
+      "face_detection_rate": 1.0,
+      "biomarker_hr_bpm": 78.0,
+      "ppg_sync": {
+        "hr_bpm": 60.46875,
+        "snr_db": 24.621261571193415,
+        "template_sqi": 0.9582956504147154,
+        "n_samples": 5365,
+        "sampled_at_video_fps": 24.0
+      },
+      "chrom": {
+        "hr_bpm": 53.4375,
+        "hr_error_vs_ppg_sync_bpm": -7.03125,
+        "abs_hr_error_vs_ppg_sync_bpm": 7.03125,
+        "hr_error_vs_biomarker_bpm": -24.5625,
+        "abs_hr_error_vs_biomarker_bpm": 24.5625,
+        "snr_db": 17.405336981013942,
+        "template_sqi": 0.8134332853189462
+      },
+      "pos": {
+        "hr_bpm": 57.65625,
+        "hr_error_vs_ppg_sync_bpm": -2.8125,
+        "abs_hr_error_vs_ppg_sync_bpm": 2.8125,
+        "hr_error_vs_biomarker_bpm": -20.34375,
+        "abs_hr_error_vs_biomarker_bpm": 20.34375,
+        "snr_db": 8.706901963591424,
+        "template_sqi": 0.7150713471800182
+      },
+      "biomarkers": {
+        "age": 19.0,
+        "sex": "F",
+        "bmi": 17.056176513282043
+      }
+    },
+    {
+      "patient_id": "1035",
+      "step": "after",
+      "camera": "FullHDwebcam",
+      "view": "front",
+      "video_fps": 29.9,
+      "video_n_frames": 5385,
+      "video_duration_s": 180.10033444816054,
+      "face_detection_rate": 1.0,
+      "biomarker_hr_bpm": 93.0,
+      "ppg_sync": {
+        "hr_bpm": 73.58203125000001,
+        "snr_db": 20.554022875608116,
+        "template_sqi": 0.8976189631473187,
+        "n_samples": 5385,
+        "sampled_at_video_fps": 29.9
+      },
+      "chrom": {
+        "hr_bpm": 52.55859375000001,
+        "hr_error_vs_ppg_sync_bpm": -21.023437500000007,
+        "abs_hr_error_vs_ppg_sync_bpm": 21.023437500000007,
+        "hr_error_vs_biomarker_bpm": -40.44140624999999,
+        "abs_hr_error_vs_biomarker_bpm": 40.44140624999999,
+        "snr_db": 20.26592978902666,
+        "template_sqi": 0.7306290000863037
+      },
+      "pos": {
+        "hr_bpm": 61.318359375,
+        "hr_error_vs_ppg_sync_bpm": -12.263671875000014,
+        "abs_hr_error_vs_ppg_sync_bpm": 12.263671875000014,
+        "hr_error_vs_biomarker_bpm": -31.681640625,
+        "abs_hr_error_vs_biomarker_bpm": 31.681640625,
+        "snr_db": 7.2660286463518355,
+        "template_sqi": 0.6728086742873844
+      },
+      "biomarkers": {
+        "age": 18.0,
+        "sex": "M",
+        "bmi": 21.366869143188545
+      }
+    },
+    {
+      "patient_id": "1035",
+      "step": "before",
+      "camera": "FullHDwebcam",
+      "view": "front",
+      "video_fps": 29.9,
+      "video_n_frames": 5352,
+      "video_duration_s": 178.99665551839465,
+      "face_detection_rate": 1.0,
+      "biomarker_hr_bpm": 83.0,
+      "ppg_sync": {
+        "hr_bpm": 68.32617187500001,
+        "snr_db": 19.126070560488003,
+        "template_sqi": 0.7292379658102397,
+        "n_samples": 5352,
+        "sampled_at_video_fps": 29.9
+      },
+      "chrom": {
+        "hr_bpm": 50.806640625,
+        "hr_error_vs_ppg_sync_bpm": -17.519531250000014,
+        "abs_hr_error_vs_ppg_sync_bpm": 17.519531250000014,
+        "hr_error_vs_biomarker_bpm": -32.193359375,
+        "abs_hr_error_vs_biomarker_bpm": 32.193359375,
+        "snr_db": 22.76871548019958,
+        "template_sqi": 0.7418551007655751
+      },
+      "pos": {
+        "hr_bpm": 63.07031250000001,
+        "hr_error_vs_ppg_sync_bpm": -5.255859375000007,
+        "abs_hr_error_vs_ppg_sync_bpm": 5.255859375000007,
+        "hr_error_vs_biomarker_bpm": -19.929687499999993,
+        "abs_hr_error_vs_biomarker_bpm": 19.929687499999993,
+        "snr_db": 5.841118585654016,
+        "template_sqi": 0.7202571698875916
+      },
+      "biomarkers": {
+        "age": 18.0,
+        "sex": "M",
+        "bmi": 21.366869143188545
+      }
+    },
+    {
+      "patient_id": "1091",
+      "step": "after",
+      "camera": "FullHDwebcam",
+      "view": "front",
+      "video_fps": 24.0,
+      "video_n_frames": 5384,
+      "video_duration_s": 224.33333333333334,
+      "face_detection_rate": 1.0,
+      "biomarker_hr_bpm": 132.0,
+      "ppg_sync": {
+        "hr_bpm": 80.15625,
+        "snr_db": 21.560106265587837,
+        "template_sqi": 0.9749585751351257,
+        "n_samples": 5384,
+        "sampled_at_video_fps": 24.0
+      },
+      "chrom": {
+        "hr_bpm": 57.65625,
+        "hr_error_vs_ppg_sync_bpm": -22.5,
+        "abs_hr_error_vs_ppg_sync_bpm": 22.5,
+        "hr_error_vs_biomarker_bpm": -74.34375,
+        "abs_hr_error_vs_biomarker_bpm": 74.34375,
+        "snr_db": 9.09881863402369,
+        "template_sqi": 0.6506605278205538
+      },
+      "pos": {
+        "hr_bpm": 81.5625,
+        "hr_error_vs_ppg_sync_bpm": 1.40625,
+        "abs_hr_error_vs_ppg_sync_bpm": 1.40625,
+        "hr_error_vs_biomarker_bpm": -50.4375,
+        "abs_hr_error_vs_biomarker_bpm": 50.4375,
+        "snr_db": 8.152648540029396,
+        "template_sqi": 0.697134264245629
+      },
+      "biomarkers": {
+        "age": 22.0,
+        "sex": "F",
+        "bmi": 27.60945175517229
+      }
+    },
+    {
+      "patient_id": "1091",
+      "step": "before",
+      "camera": "FullHDwebcam",
+      "view": "front",
+      "video_fps": 24.0,
+      "video_n_frames": 5385,
+      "video_duration_s": 224.375,
+      "face_detection_rate": 1.0,
+      "biomarker_hr_bpm": 94.0,
+      "ppg_sync": {
+        "hr_bpm": 67.5,
+        "snr_db": 23.133511179695606,
+        "template_sqi": 0.564013720343278,
+        "n_samples": 5385,
+        "sampled_at_video_fps": 24.0
+      },
+      "chrom": {
+        "hr_bpm": 52.03125,
+        "hr_error_vs_ppg_sync_bpm": -15.46875,
+        "abs_hr_error_vs_ppg_sync_bpm": 15.46875,
+        "hr_error_vs_biomarker_bpm": -41.96875,
+        "abs_hr_error_vs_biomarker_bpm": 41.96875,
+        "snr_db": 9.375738105054133,
+        "template_sqi": 0.6018373289103385
+      },
+      "pos": {
+        "hr_bpm": 67.5,
+        "hr_error_vs_ppg_sync_bpm": 0.0,
+        "abs_hr_error_vs_ppg_sync_bpm": 0.0,
+        "hr_error_vs_biomarker_bpm": -26.5,
+        "abs_hr_error_vs_biomarker_bpm": 26.5,
+        "snr_db": 9.997051870112056,
+        "template_sqi": 0.6736988254185945
+      },
+      "biomarkers": {
+        "age": 22.0,
+        "sex": "F",
+        "bmi": 27.60945175517229
+      }
+    }
+  ]
+}
