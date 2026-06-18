@@ -203,13 +203,35 @@ but PPG-sync 114 bpm during the actual video; subject 9425 has biomarker 116
 bpm but PPG-sync 96 bpm. The synchronized `ppg_sync/*.txt` column 1 is the
 correct reference.
 
+### MIT-BIH UQ v1 — three UQ methods compared on a working classifier
+
+With MIT-BIH splits rebalanced (4 AF records in train: 202, 203, 219, 221) and class-weighted CE, the classifier reaches 71 % test accuracy and three UQ methods produce real selective behaviour. Full breakdown in [`docs/baselines/mitbih_uq_v1/findings.md`](docs/baselines/mitbih_uq_v1/findings.md).
+
+| Method | acc | ECE↓ | Brier↓ | AURC↓ | sel_acc@0.5↑ | sel_acc@0.95↑ |
+|---|---:|---:|---:|---:|---:|---:|
+| MC Dropout (T=30) | 0.711 | 0.250 | 0.508 | 0.487 | 0.517 | 0.722 |
+| Conformal (α=0.1) | 0.492 | 0.387 | 0.614 | 0.169 | **0.928** | 0.518 |
+| **Ensembles (M=5)** | 0.697 | **0.125** | **0.388** | **0.095** | 0.922 | 0.719 |
+
+Ensembles dominate calibration and AURC. Conformal wins low-coverage (its top-50 % most-confident predictions are 93 % accurate, even though its raw accuracy is the lowest of the three). MC Dropout is the weakest UQ ranker. Same ordering carries forward to the synth-rPPG runs below — the relative behaviour of the three methods is consistent across data sources.
+
+### Synth-rPPG v1 — MIT-BIH ECG → synthetic 30 Hz rPPG
+
+Fallback path while OBF / MAHNOB-HCI access is pending. ECG R-peaks → asymmetric Gaussian beat templates at PTT lag → downsample to 30 Hz → noise + baseline wander. AF rhythm signal survives the round-trip: val macro-F1 reaches **0.64** on the single-model run. The three UQ methods run end-to-end on the new data source with the same code. Test accuracy is limited by the narrow MIT-BIH split (test = {210, 200}); the next milestone is scaling AF training data via CinC 2017. Pinned in [`docs/baselines/synth_rppg_v1/findings.md`](docs/baselines/synth_rppg_v1/findings.md).
+
+| Method | acc | ECE↓ | Brier↓ | AURC↓ |
+|---|---:|---:|---:|---:|
+| MC Dropout (T=30) | 0.208 | 0.426 | 0.956 | 0.776 |
+| Conformal (α=0.1) | 0.275 | 0.382 | 0.927 | 0.751 |
+| **Ensembles (M=5)** | 0.308 | **0.242** | **0.756** | 0.737 |
+
 ### Phase 1 (rPPG, healthy cohort) — in progress
 
-Results on MCD-rPPG and rPPG-10 will be added here once the rPPG extractor + Dataset pipeline lands. Reporting will follow the structure planned below.
+MCD-rPPG step-classification (resting vs post-exercise) was attempted as a pipeline sanity task. Both POS-derived features (test F1 0.62) and PPG-sync GT features (test F1 0.65) failed to learn the task: HR distributions overlap heavily at 30-second windows because post-exercise HR recovers within 60–90 s. Pipeline end-to-end validated; task itself is intrinsically weak. Pivoted to MIT-BIH UQ comparison and synth-rPPG fallback above.
 
-### Phase 2 (rPPG, AF detection) — not yet run
+### Phase 2 (rPPG, AF detection) — pending data access
 
-Results on OBF will be added here once data access is granted. Same reporting structure.
+OBF access request submitted; MAHNOB-HCI request as parallel channel. Synth-rPPG carries the AF methodology while data requests are in flight.
 
 Planned reporting structure (kept here as a placeholder so the eventual content has a fixed home):
 
@@ -230,7 +252,9 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] Signal-quality metrics: spectral SNR, template SQI.
 - [x] 1D-CNN + Transformer classifier.
 - [x] Selective metrics: risk-coverage, AURC, ECE, Brier, predictive entropy.
-- [x] UQ heads: MC Dropout, Deep Ensembles, Evidential DL, Conformal Prediction.
+- [x] UQ heads: MC Dropout (working), Deep Ensembles (working), Conformal Prediction (working). Evidential DL module implemented (training-time wiring pending). SNGP scaffolded only.
+- [x] Three UQ methods compared on MIT-BIH and synth-rPPG. Pinned in [`docs/baselines/mitbih_uq_v1/`](docs/baselines/mitbih_uq_v1/) and [`docs/baselines/synth_rppg_v1/`](docs/baselines/synth_rppg_v1/).
+- [x] MIT-BIH → synthetic rPPG synthesis pipeline (R-peak detection + beat template + 30 Hz downsample + noise model). Pinned in [`docs/baselines/synth_rppg_v1/`](docs/baselines/synth_rppg_v1/).
 - [x] Signal-quality-aware deferral policy.
 - [x] Unit tests for selective metrics and conformal prediction.
 - [x] MIT-BIH downloader and PyTorch `Dataset`; subject-disjoint splits.
@@ -247,9 +271,12 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [ ] MCD-rPPG dataset loader (layout-specific code finalized after download).
 - [ ] Phase-1 results on rPPG-10 (independent extractor validation).
 - [ ] Phase-1 classifier training on MCD-rPPG healthy-cohort pulse waveforms.
-- [ ] OBF data access request submitted.
-- [ ] Phase-2 results on OBF (AF classification).
-- [ ] MIT-BIH synthesis fallback path.
+- [x] OBF data access request submitted.
+- [ ] MAHNOB-HCI access request (parallel face-video AF channel).
+- [ ] Phase-2 results on OBF (AF classification) — pending data access.
+- [ ] CinC 2017 AF Challenge dataset → synth-rPPG at 5–10× current AF training scale.
+- [ ] Evidential Deep Learning training-time integration.
+- [ ] SNGP — spectral-normalized backbone + random-feature GP head.
 - [ ] Demographic-stratified evaluation.
 - [ ] arXiv preprint; submission to IEEE J-BHI.
 
@@ -259,13 +286,15 @@ If this repository contributes to your research, please cite the project reposit
 
 ```bibtex
 @misc{khan2026rppg_sa,
-  author       = {Khan, Shahnawaz},
+  author       = {Khan, Muhammad Shahnawaz},
   title        = {{rppg-selective-arrhythmia}: Selective prediction with calibrated uncertainty for contactless arrhythmia detection from facial video},
   year         = {2026},
   howpublished = {\url{https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}},
   note         = {Work in progress.}
 }
 ```
+
+A machine-readable [`CITATION.cff`](CITATION.cff) is included at the repository root so GitHub's "Cite this repository" button works directly.
 
 When the accompanying paper appears on arXiv, the entry above will be updated to point to it.
 

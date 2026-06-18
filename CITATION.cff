@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+title: "rppg-selective-arrhythmia: Selective prediction with calibrated uncertainty for contactless arrhythmia detection from facial video"
+message: "If this repository contributes to your research, please cite it as below."
+type: software
+authors:
+  - family-names: "Khan"
+    given-names: "Muhammad Shahnawaz"
+    orcid: "https://orcid.org/0009-0007-4055-6563"
+repository-code: "https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
+url: "https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
+abstract: >-
+  Benchmarks five uncertainty-quantification methods (MC Dropout,
+  Deep Ensembles, Evidential Deep Learning, SNGP, and Conformal
+  Prediction) on remote-photoplethysmography (rPPG) signals from
+  facial video, with the goal of a clinically deployable atrial-
+  fibrillation screen that defers to a clinician when its
+  confidence is insufficient. Provides classical (CHROM, POS) and
+  learned (PhysNet, planned) rPPG extractors, signal-quality
+  estimation, a CNN1D + Transformer classifier, five UQ heads, and
+  selective-evaluation utilities including risk-coverage curves,
+  AURC, ECE, and Brier score.
+keywords:
+  - rPPG
+  - remote photoplethysmography
+  - atrial fibrillation
+  - selective prediction
+  - uncertainty quantification
+  - conformal prediction
+  - deep ensembles
+  - MC dropout
+  - calibration
+  - contactless cardiac screening
+license: MIT
+version: "0.1.0"
+date-released: "2026-06-18"
+preferred-citation:
+  type: software
+  title: "rppg-selective-arrhythmia: Selective prediction with calibrated uncertainty for contactless arrhythmia detection from facial video"
+  authors:
+    - family-names: "Khan"
+      given-names: "Muhammad Shahnawaz"
+      orcid: "https://orcid.org/0009-0007-4055-6563"
+  year: 2026
+  url: "https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
+  notes: "Work in progress."
