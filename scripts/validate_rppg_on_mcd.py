@@ -26,6 +26,7 @@ from scipy.signal import butter, filtfilt, welch
 from rppg_sa.data.mcd_rppg import iter_samples, load_ppg_sync
 from rppg_sa.extractors.chrom import chrom
 from rppg_sa.extractors.face_roi import extract_roi_signals, merge_rois
+from rppg_sa.extractors.hr import windowed_hr_bpm
 from rppg_sa.extractors.pos import pos
 from rppg_sa.extractors.signal_quality import summarize_quality
 
@@ -34,13 +35,6 @@ def _bandpass(x: np.ndarray, fs: float, lo: float = 0.7, hi: float = 4.0, order:
     nyq = 0.5 * fs
     b, a = butter(order, [lo / nyq, hi / nyq], btype="band")
     return filtfilt(b, a, x)
-
-
-def _peak_hr_bpm(pulse: np.ndarray, fs: float, hr_band: tuple[float, float] = (0.7, 4.0)) -> float:
-    f, pxx = welch(pulse, fs=fs, nperseg=min(len(pulse), 1024))
-    band = (f >= hr_band[0]) & (f <= hr_band[1])
-    f_band, p_band = f[band], pxx[band]
-    return float(f_band[int(np.argmax(p_band))] * 60.0)
 
 
 def _resample_to_uniform(values: np.ndarray, timestamps: np.ndarray, fs_out: float = 30.0) -> tuple[np.ndarray, float]:
@@ -92,13 +86,16 @@ def evaluate_record(
     gt_values = gt_values[:common_n]
     gt_fs = rois.fps
     gt_filtered = _bandpass(gt_values - gt_values.mean(), fs=gt_fs)
-    ppg_sync_hr = _peak_hr_bpm(gt_filtered, fs=gt_fs)
+    gt_windowed = windowed_hr_bpm(gt_filtered, fs=gt_fs)
+    ppg_sync_hr = gt_windowed["hr_bpm"]
     gt_quality = summarize_quality(gt_filtered, fs=gt_fs)
 
     pulse_chrom = chrom(rgb, fs=rois.fps)
     pulse_pos = pos(rgb, fs=rois.fps)
-    hr_chrom = _peak_hr_bpm(pulse_chrom, fs=rois.fps)
-    hr_pos = _peak_hr_bpm(pulse_pos, fs=rois.fps)
+    chrom_windowed = windowed_hr_bpm(pulse_chrom, fs=rois.fps)
+    pos_windowed = windowed_hr_bpm(pulse_pos, fs=rois.fps)
+    hr_chrom = chrom_windowed["hr_bpm"]
+    hr_pos = pos_windowed["hr_bpm"]
     q_chrom = summarize_quality(pulse_chrom, fs=rois.fps)
     q_pos = summarize_quality(pulse_pos, fs=rois.fps)
 
@@ -120,6 +117,8 @@ def evaluate_record(
         "biomarker_hr_bpm": biomarker_hr,
         "ppg_sync": {
             "hr_bpm": ppg_sync_hr,
+            "hr_std_bpm": gt_windowed["hr_std_bpm"],
+            "n_windows": gt_windowed["n_windows"],
             "snr_db": gt_quality["snr_db"],
             "template_sqi": gt_quality["template_sqi"],
             "n_samples": int(common_n),
@@ -127,6 +126,8 @@ def evaluate_record(
         },
         "chrom": {
             "hr_bpm": hr_chrom,
+            "hr_std_bpm": chrom_windowed["hr_std_bpm"],
+            "n_windows": chrom_windowed["n_windows"],
             "hr_error_vs_ppg_sync_bpm": float(hr_chrom - ppg_sync_hr),
             "abs_hr_error_vs_ppg_sync_bpm": float(abs(hr_chrom - ppg_sync_hr)),
             "hr_error_vs_biomarker_bpm": err(hr_chrom, biomarker_hr),
@@ -136,6 +137,8 @@ def evaluate_record(
         },
         "pos": {
             "hr_bpm": hr_pos,
+            "hr_std_bpm": pos_windowed["hr_std_bpm"],
+            "n_windows": pos_windowed["n_windows"],
             "hr_error_vs_ppg_sync_bpm": float(hr_pos - ppg_sync_hr),
             "abs_hr_error_vs_ppg_sync_bpm": float(abs(hr_pos - ppg_sync_hr)),
             "hr_error_vs_biomarker_bpm": err(hr_pos, biomarker_hr),

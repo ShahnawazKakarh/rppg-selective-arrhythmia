@@ -155,22 +155,53 @@ The failures themselves are the finding. Five concrete lessons feed forward into
 
 MIT-BIH is parked. The next experimental phase targets the actual research path on rPPG data.
 
-### MCD-rPPG v0 — classical extractor validation (frontal webcam, n = 8)
+### MCD-rPPG — classical extractor validation (frontal webcam)
 
-First real rPPG numbers in the repo. CHROM and POS were run on a small subset of the [MCD-rPPG](https://huggingface.co/datasets/milai-oks-sakura/mcd_rppg) dataset (4 subjects × resting + post-exercise, frontal webcam, 180 s each) and scored against the synchronized contact-PPG ground truth that accompanies each video. Full per-record breakdown in [`docs/baselines/mcd_rppg_v0/findings.md`](docs/baselines/mcd_rppg_v0/findings.md); raw results in [`docs/baselines/mcd_rppg_v0/results.json`](docs/baselines/mcd_rppg_v0/results.json).
+Three progressive baselines validate the rPPG extractor + ground-truth
+pipeline at increasing scale. **The methodological progression itself is
+the finding**: small samples can be misleading; published rPPG benchmarks
+aggregate HR by windowed median rather than full-clip Welch peak.
 
-| Method | HR MAE vs PPG-sync GT (bpm) | Notes |
-|---|---:|---|
-| **POS** (Wang et al. 2017) | **5.35** | Paper's POS baseline on the full dataset: 3.80 |
-| CHROM (de Haan & Jeanne 2013) | 20.08 | Consistent sub-harmonic lock-on under MPEG-4 decode artefacts |
+| Baseline | n records | HR aggregation | POS MAE vs PPG-sync (bpm) | CHROM MAE | Pinned at |
+|---|---:|---|---:|---:|---|
+| [`mcd_rppg_v0`](docs/baselines/mcd_rppg_v0/findings.md) | 8 | Single Welch peak | 5.35 (lucky) | 20.08 | First end-to-end run |
+| [`mcd_rppg_v1`](docs/baselines/mcd_rppg_v1/results.json) | 100 | Single Welch peak | 27.10 | 28.58 | Reveals v0 was lucky |
+| [**`mcd_rppg_v2`**](docs/baselines/mcd_rppg_v2/findings.md) | 100 | **Windowed median 10 s, 0.7–3 Hz band** | **12.39** | 27.24 | **Current best** |
 
-Face detection (MediaPipe FaceMesh, forehead + bilateral cheeks): **100 % across all 8 clips**. Sample count is too small to claim a publishable comparison, but it is sufficient to demonstrate end-to-end pipeline correctness and put POS within striking distance of the dataset's own paper baseline.
+Paper baseline (Egorov et al. 2025, full dataset): POS 3.80 bpm MAE. We are
+~3× above that on a 100-record subset, with the remaining error concentrated
+on a specific clinically meaningful subset (see below). Face detection holds
+at 100 % across all 100 clips. Full per-record breakdowns and discussion in
+[`docs/baselines/mcd_rppg_v2/findings.md`](docs/baselines/mcd_rppg_v2/findings.md).
 
-Three concrete findings from this run:
+Four concrete findings:
 
-1. **The biomarker `pulse` column is not the right ground truth.** It is a discrete clinical cuff reading, not the average HR over the video window. POS MAE rises from 5.35 to 26.86 bpm when scored against `db.csv.pulse`. Some clips show a 50+ bpm gap between cuff and contact-PPG (subject 1091: biomarker 132 bpm vs PPG-sync 80 bpm). The synchronized `ppg_sync/*.txt` column 1 is the correct reference.
-2. **`ppg_sync/*.txt` is per-video-frame, not per-100-Hz-PPG-sample.** Each file has exactly one row per video frame; column 1 is the contact PPG resampled to the video frame rate; column 2 is sync metadata, *not* inter-sample Δt. Initial mis-interpretation cost a debug cycle; format is now documented in [`mcd_rppg.py`](src/rppg_sa/data/mcd_rppg.py).
-3. **CHROM consistently locks to a sub-harmonic on this dataset.** All 8 clips return 47–58 bpm regardless of true HR (60–80 bpm range). Plausibly an interaction between MPEG-4 decode artefacts (warnings on every clip) and CHROM's higher sensitivity to high-frequency colour noise. POS does not show the same failure. This is a genuine CHROM weakness, not an implementation bug.
+1. **The classical rPPG pipeline works.** Down from 27 bpm to 12 bpm on the
+   same 100 clips, purely by switching from full-clip Welch peak to
+   per-10-second-window median — the standard aggregation in the rPPG
+   literature. No extractor change.
+2. **The remaining 12 bpm is structured, not noise.** Errors concentrate on
+   post-exercise high-HR clips (>100 bpm). On normal-HR clips, POS lands
+   within a few bpm. The high-HR mode is **classical rPPG sub-harmonic
+   lock-on** (de Haan & van Leest 2014; Wang 2017), where chrominance
+   projection amplifies the 2nd harmonic. PhysNet (learned extractor) is the
+   planned next step here.
+3. **This is the right substrate for selective prediction.** Failures cluster
+   on clinically meaningful clips (high HR, post-exercise) and co-occur with
+   detectable signal-quality drops (low spectral SNR, high per-window HR
+   std). The deferral policy can use those features directly.
+4. **CHROM is unsuitable for this dataset.** Every clip locks to ~50 bpm
+   regardless of true HR; median-across-windows does not help. We attribute
+   it to the dataset's consistent MPEG-4 decode artefacts interacting with
+   CHROM's higher noise sensitivity. POS is the surviving classical baseline.
+
+The biomarker `pulse` column in `db.csv` is *not* a usable ground truth for
+the video time window — it is a discrete clinical cuff reading taken before
+or after the 3-minute video, and POS MAE against it is 22.08 bpm (10 bpm
+worse than against the synchronized PPG). Subject 1107 has biomarker 146 bpm
+but PPG-sync 114 bpm during the actual video; subject 9425 has biomarker 116
+bpm but PPG-sync 96 bpm. The synchronized `ppg_sync/*.txt` column 1 is the
+correct reference.
 
 ### Phase 1 (rPPG, healthy cohort) — in progress
 
@@ -194,7 +225,8 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] Classical rPPG extractors: CHROM, POS.
 - [x] MCD-rPPG dataset loader (`db.csv` index + ECG / PPG / video / sync loaders).
 - [x] MediaPipe-based face-ROI extraction (forehead + bilateral cheeks).
-- [x] First MCD-rPPG validation: POS MAE 5.35 bpm vs PPG-sync GT, n = 8 ([`docs/baselines/mcd_rppg_v0/`](docs/baselines/mcd_rppg_v0/)).
+- [x] Windowed HR estimation (per-10 s windows, median aggregation), with per-clip HR std as a deferral feature.
+- [x] MCD-rPPG validation at scale (n=100): POS MAE 12.39 bpm vs PPG-sync GT ([`docs/baselines/mcd_rppg_v2/`](docs/baselines/mcd_rppg_v2/)).
 - [x] Signal-quality metrics: spectral SNR, template SQI.
 - [x] 1D-CNN + Transformer classifier.
 - [x] Selective metrics: risk-coverage, AURC, ECE, Brier, predictive entropy.
@@ -208,9 +240,9 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [ ] Per-split class-coverage verification utility (catch the v0 failure mode before training).
 - [ ] Focal-loss / progressive-resampling training option (replacing CE-weight scalar).
 - [ ] MediaPipe-based face-ROI extraction wired into the dataset pipeline.
-- [ ] Scale MCD-rPPG validation to 50+ subjects (closes gap to paper's 3.80 bpm POS baseline).
-- [ ] Per-window (10 s) HR estimation for per-segment confidence inputs.
-- [ ] PhysNet learned rPPG extractor.
+- [ ] Scale MCD-rPPG validation to all 600 subjects (closes remaining gap to paper's 3.80 bpm POS baseline).
+- [ ] PhysNet learned rPPG extractor — next-step contender for the high-HR sub-harmonic-lock failure mode.
+- [ ] MCD-rPPG dataset adapter for the classifier training loop.
 - [ ] SNGP head — spectral-normalized backbone + random-feature GP.
 - [ ] MCD-rPPG dataset loader (layout-specific code finalized after download).
 - [ ] Phase-1 results on rPPG-10 (independent extractor validation).
