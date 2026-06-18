@@ -54,6 +54,29 @@ def _build_dataset(cfg: dict[str, Any]):
         test_ids = [str(r) for r in cfg["data"]["splits"]["test"]]
         train_idx, val_idx, test_idx = subject_disjoint_split(ds, train_ids, val_ids, test_ids)
         return ds, train_idx, val_idx, test_idx, ds.LABEL_NAMES
+    if source == "synth_rppg":
+        from rppg_sa.data.synth_rppg_torch import (
+            SynthRPPGSegmentDataset,
+            subject_disjoint_split as synth_split,
+        )
+
+        ds = SynthRPPGSegmentDataset(
+            root=cfg["data"]["root"],
+            record_ids=[str(r) for r in cfg["data"]["all_records"]],
+            target_fs=float(cfg["data"]["target_fs"]),
+            window_seconds=float(cfg["data"]["window_seconds"]),
+            step_seconds=float(cfg["data"].get("step_seconds", cfg["data"]["window_seconds"])),
+            cache_dir=cfg["data"].get("cache_dir"),
+            synth_seed=int(cfg["data"].get("synth_seed", 42)),
+            noise_sigma=float(cfg["data"].get("noise_sigma", 0.05)),
+            motion_burst_prob=float(cfg["data"].get("motion_burst_prob", 0.0)),
+            lighting_flicker_amp=float(cfg["data"].get("lighting_flicker_amp", 0.0)),
+        )
+        train_ids = [str(r) for r in cfg["data"]["splits"]["train"]]
+        val_ids = [str(r) for r in cfg["data"]["splits"]["val"]]
+        test_ids = [str(r) for r in cfg["data"]["splits"]["test"]]
+        train_idx, val_idx, test_idx = synth_split(ds, train_ids, val_ids, test_ids)
+        return ds, train_idx, val_idx, test_idx, ds.LABEL_NAMES
     if source == "mcd_rppg":
         from rppg_sa.data.mcd_rppg_torch import (
             MCDRPPGSegmentDataset,

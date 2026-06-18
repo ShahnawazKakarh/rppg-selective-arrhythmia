@@ -1,0 +1,63 @@
+# Synthesized rPPG from MIT-BIH ECG.
+# Same 3-class arrhythmia task, but the classifier sees synthesized rPPG-style
+# pulse waveforms at 30 Hz (camera fps) instead of raw 360 Hz ECG. This is the
+# methodological fallback for the AF rPPG story while OBF / MAHNOB access is
+# pending.
+
+experiment:
+  name: synth_rppg_baseline
+  seed: 42
+  device: auto
+
+data:
+  source: synth_rppg
+  root: data/raw/mitbih
+  cache_dir: data/processed/synth_rppg
+  target_fs: 30.0          # camera frame rate
+  window_seconds: 30.0
+  step_seconds: 30.0
+  synth_seed: 42
+  noise_sigma: 0.05
+  motion_burst_prob: 0.0    # off for the clean baseline; ramp up later for robustness studies
+  lighting_flicker_amp: 0.0
+  all_records:
+    [100, 101, 103, 105, 106, 108, 109, 111, 112, 113, 114, 115, 116, 117,
+     118, 119, 121, 122, 123, 124, 200, 201, 202, 203, 205, 207, 208, 209,
+     210, 212, 213, 214, 215, 219, 220, 221, 222, 223, 228, 230, 231, 232, 233, 234]
+  splits:
+    train:
+      [100, 101, 103, 105, 106, 108, 109, 111, 112, 113, 114, 115, 116, 117,
+       118, 119, 121, 122, 123, 124, 202, 203, 205, 207, 208, 209,
+       212, 214, 215, 219, 220, 221, 223, 228, 230, 231, 232, 233, 234]
+    val:
+      [201, 213, 222]
+    test:
+      [210, 200]
+
+classifier:
+  type: cnn1d_transformer
+  in_channels: 1
+  num_classes: 3
+  conv_channels: [32, 64, 128]
+  transformer_layers: 2
+  transformer_heads: 4
+  dropout: 0.4
+
+training:
+  epochs: 30
+  batch_size: 64
+  optimizer: adamw
+  lr: 0.0003
+  weight_decay: 0.0001
+  scheduler: cosine
+  early_stopping_patience: 5
+  class_weighted_loss: true
+
+logging:
+  use_wandb: false
+  project: rppg-selective-arrhythmia
+  entity: null
+  log_dir: runs
+
+checkpoint:
+  save_best_on: val_macro_f1
