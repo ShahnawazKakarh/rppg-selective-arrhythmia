@@ -1,0 +1,53 @@
+# MCD-rPPG — resting vs post-exercise from POS pulse waveform.
+# End-to-end sanity task before paired AF face-video data (OBF) is available.
+# Same CNN1D-Transformer classifier that will later run on AF rhythm data.
+
+experiment:
+  name: mcd_rppg_step_classifier
+  seed: 42
+  device: auto
+
+data:
+  source: mcd_rppg
+  root: data/raw/mcd_rppg
+  cache_dir: data/processed/pulse_waveforms
+  camera: FullHDwebcam
+  view: front
+  target_fs: 30.0       # POS pulse is at video fps (most clips ~29.9 Hz)
+  window_seconds: 30.0  # standard rPPG segment length; 6 windows per 3-min clip
+  # Auto-split 70/15/15 by patient_id with experiment.seed.
+  # To pin specific subjects later, replace with:
+  #   splits:
+  #     train: [<patient_ids>]
+  #     val: [...]
+  #     test: [...]
+  val_frac: 0.15
+  test_frac: 0.15
+
+classifier:
+  type: cnn1d_transformer
+  in_channels: 1
+  num_classes: 2          # before (resting) vs after (post-exercise)
+  conv_channels: [32, 64, 128]
+  transformer_layers: 2
+  transformer_heads: 4
+  dropout: 0.4
+
+training:
+  epochs: 30
+  batch_size: 64
+  optimizer: adamw
+  lr: 0.0003
+  weight_decay: 0.0001
+  scheduler: cosine
+  early_stopping_patience: 5
+  class_weighted_loss: false
+
+logging:
+  use_wandb: false
+  project: rppg-selective-arrhythmia
+  entity: null
+  log_dir: runs
+
+checkpoint:
+  save_best_on: val_macro_f1

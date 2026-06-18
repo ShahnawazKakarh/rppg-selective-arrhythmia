@@ -183,9 +183,9 @@ cython_debug/
 
 # --- rppg-selective-arrhythmia project-specific ---
 
-# Datasets (raw + processed)
-data/
-!data/.gitkeep
+# Datasets (raw + processed) — anchored to repo root so src/rppg_sa/data is not ignored
+/data/
+!/data/.gitkeep
 
 # Model checkpoints and run artefacts
 runs/

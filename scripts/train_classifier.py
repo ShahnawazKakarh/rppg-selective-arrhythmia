@@ -54,6 +54,38 @@ def _build_dataset(cfg: dict[str, Any]):
         test_ids = [str(r) for r in cfg["data"]["splits"]["test"]]
         train_idx, val_idx, test_idx = subject_disjoint_split(ds, train_ids, val_ids, test_ids)
         return ds, train_idx, val_idx, test_idx, ds.LABEL_NAMES
+    if source == "mcd_rppg":
+        from rppg_sa.data.mcd_rppg_torch import (
+            MCDRPPGSegmentDataset,
+            auto_split_subjects,
+            subject_disjoint_split,
+        )
+
+        ds = MCDRPPGSegmentDataset(
+            root=cfg["data"]["root"],
+            cache_dir=cfg["data"].get("cache_dir"),
+            camera=cfg["data"].get("camera", "FullHDwebcam"),
+            view=cfg["data"].get("view", "front"),
+            target_fs=float(cfg["data"]["target_fs"]),
+            window_seconds=float(cfg["data"]["window_seconds"]),
+            max_records=cfg["data"].get("max_records"),
+        )
+        splits = cfg["data"].get("splits")
+        if splits and "train" in splits:
+            train_ids = [str(r) for r in splits["train"]]
+            val_ids = [str(r) for r in splits["val"]]
+            test_ids = [str(r) for r in splits["test"]]
+        else:
+            # Deterministic 70/15/15 subject-level auto-split.
+            train_ids, val_ids, test_ids = auto_split_subjects(
+                ds,
+                val_frac=float(cfg["data"].get("val_frac", 0.15)),
+                test_frac=float(cfg["data"].get("test_frac", 0.15)),
+                seed=int(cfg["experiment"]["seed"]),
+            )
+            print(f"auto-split subjects: train {len(train_ids)} | val {len(val_ids)} | test {len(test_ids)}")
+        train_idx, val_idx, test_idx = subject_disjoint_split(ds, train_ids, val_ids, test_ids)
+        return ds, train_idx, val_idx, test_idx, ds.LABEL_NAMES
     raise ValueError(f"Unsupported data source: {source}")
 
 
