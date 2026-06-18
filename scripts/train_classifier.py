@@ -139,9 +139,17 @@ def _epoch_loop(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train arrhythmia classifier.")
     parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Override experiment.seed (used for ensemble members).")
+    parser.add_argument("--name-suffix", type=str, default="",
+                        help="Append to experiment.name; lands in runs/<name><suffix>/.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    if args.seed is not None:
+        cfg["experiment"]["seed"] = int(args.seed)
+    if args.name_suffix:
+        cfg["experiment"]["name"] = cfg["experiment"]["name"] + args.name_suffix
     set_seed(int(cfg["experiment"]["seed"]))
     device = _resolve_device(cfg["experiment"]["device"])
     print(f"Device: {device}")
