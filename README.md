@@ -236,6 +236,8 @@ Combining model confidence with **spectral SNR** beats UQ-only deferral by 18 % 
 | template_sqi | 0.2367 | 0.2289 | +0.0078 (3.3 %) | 0.30 | 0.763 → 0.754 |
 | **snr_db** | 0.2367 | **0.1942** | **+0.0425 (18.0 %)** | 0.70 | 0.763 → **0.802** |
 
+The gain replicates across UQ methods: MC Dropout (−entropy) drops AURC from 0.198 → 0.189 (+4.4 %); Ensembles (M=5) drops 0.216 → 0.206 (+4.5 %). SNR-deferral magnitude scales inversely with the strength of the underlying UQ confidence — the simpler the model's uncertainty signal, the more SNR-deferral matters. Cleanest payoff is on deterministic single-forward-pass classifiers (the lightweight clinical-screen regime).
+
 This is the empirical claim the paper hinges on: physical signal-quality features carry deferral information the model confidence inherently misses, and a deployed system can add this overnight (no retraining).
 
 ### Synth-rPPG v1 (MIT-BIH-derived, kept as small-scale baseline)

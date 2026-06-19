@@ -50,16 +50,36 @@ This is the technical novelty of the paper, isolated as a clean controlled exper
 
 This is the empirical claim the paper hinges on.
 
+## Replication across UQ methods
+
+The SNR-deferral gain is not a single-model artefact. Same SNR sweep (rank-normalized linear combination), three different UQ-confidence sources for the same CinC test set:
+
+| UQ method | Confidence source | UQ-only AURC | Best AURC | Δ rel | Best w |
+|---|---|---:|---:|---:|---:|
+| Deterministic | max softmax | 0.2367 | **0.1942** | **+18.0 %** | 0.70 |
+| MC Dropout (T=30) | −predictive entropy | 0.1980 | 0.1892 | +4.4 % | 0.30 |
+| Ensembles (M=5) | max averaged softmax | 0.2155 | 0.2059 | +4.5 % | 0.30 |
+
+Observations:
+
+- **SNR helps every UQ method.** The Δ is positive across all three; the effect is robust.
+- **Magnitude scales inversely with UQ quality.** When the underlying model confidence is already informative (MC Dropout entropy, ensemble averaging), SNR adds ~4 %. When it's a single deterministic softmax peak, SNR adds 18 %. Interpretation: SNR is filling in the information the weaker confidence misses.
+- **Optimal w shifts in the same direction.** Deterministic confidence → w=0.70 (lean on SNR). Stronger UQ confidence → w=0.30 (model first, SNR supplements). Methodologically interpretable: the deferral weighting tracks confidence informativeness.
+
+For a deployed system, this means: the simpler the model's uncertainty signal, the more SNR-deferral matters. Lightweight clinical screens — which are usually deterministic, single-forward-pass for compute reasons — are exactly where SQI-aware deferral pays the most.
+
 ## Files
 
 - Code: `scripts/eval_sqi_deferral.py`, `src/rppg_sa/selective/deferral.py`.
 - Per-weight detail: `runs/synth_rppg_cinc/eval_sqi_deferral/results_snr_db.json`, `…/results_template_sqi.json`.
 - CSV sweeps: `runs/synth_rppg_cinc/eval_sqi_deferral/sweep_snr_db.csv`, `…/sweep_template_sqi.csv`.
+- MC Dropout replication: `runs/synth_rppg_cinc/eval_mc_dropout/eval_sqi_deferral_mc_dropout/sweep_snr_db.csv`.
+- Ensemble replication: `runs/synth_rppg_cinc_ens1/eval_ensembles/eval_sqi_deferral_ensembles/sweep_snr_db.csv`.
 
 ## Next
 
-1. **Replicate on the ensemble** to confirm the SNR-deferral gain isn't a single-model artefact. Same script, different `--checkpoint`.
-2. **Replicate on MC Dropout confidence** (entropy-based score) — does SNR-weighted entropy beat raw entropy?
-3. **Replicate on MIT-BIH classifier** for cross-dataset robustness of the SQI claim.
-4. **Per-class breakdown of SQI-deferral gain** — does it preferentially recover AF or NSR? (clinically important.)
+1. **Replicate on MIT-BIH classifier** for cross-dataset robustness of the SQI claim.
+2. **Per-class breakdown of SQI-deferral gain** — does it preferentially recover AF or NSR? (clinically important.)
+3. **Separate `data_seed` from `model_seed`** in the trainer, retrain the ensemble cleanly, re-run SQI sweep.
+4. **Evidential DL training-time integration** — a 4th UQ method in the comparison.
 5. **When OBF arrives**, this is the experiment to run first.

@@ -156,32 +156,85 @@ def _compute_quality(signals: list[np.ndarray], fs: float, key: str) -> np.ndarr
     return out
 
 
+def _load_predictions_csv(path: Path):
+    """Read predictions.csv produced by eval_selective.py.
+
+    Returns (labels, preds, confidence, run_dir).
+    """
+    import csv as _csv
+    labels: list[int] = []
+    preds: list[int] = []
+    confs: list[float] = []
+    with path.open() as f:
+        reader = _csv.DictReader(f)
+        for row in reader:
+            labels.append(int(row["label"]))
+            preds.append(int(row["pred"]))
+            confs.append(float(row["confidence"]))
+    return (
+        np.array(labels, dtype=np.int64),
+        np.array(preds, dtype=np.int64),
+        np.array(confs, dtype=np.float64),
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--checkpoint", type=Path, required=True)
+    parser.add_argument("--checkpoint", type=Path, default=None,
+                        help="Single-model checkpoint; runs deterministic forward pass.")
+    parser.add_argument("--predictions-csv", type=Path, default=None,
+                        help="Path to existing eval_*/predictions.csv; reuses its "
+                             "confidences (entropy-based for MC Dropout, averaged "
+                             "softmax max for ensembles, etc.).")
+    parser.add_argument("--run-dir", type=Path, default=None,
+                        help="Run dir containing splits.json. Required with "
+                             "--predictions-csv; ignored otherwise.")
+    parser.add_argument("--tag", type=str, default="",
+                        help="Suffix appended to output dir name (e.g. _mc_dropout).")
     parser.add_argument("--signal-quality", default="template_sqi",
                         choices=["snr_db", "template_sqi"])
     parser.add_argument("--weights", type=float, nargs="+", default=DEFAULT_WEIGHTS)
     parser.add_argument("--coverages", type=float, nargs="+", default=DEFAULT_COVERAGES)
     args = parser.parse_args()
 
+    if args.checkpoint is None and args.predictions_csv is None:
+        raise SystemExit("Provide --checkpoint OR --predictions-csv")
+    if args.predictions_csv and args.run_dir is None:
+        raise SystemExit("--predictions-csv requires --run-dir (for splits.json)")
+
     cfg = load_config(args.config)
     set_seed(int(cfg["experiment"]["seed"]))
     device = _resolve_device(cfg["experiment"]["device"])
     print(f"Device: {device}")
 
-    loader, label_names, test_signals, fs = _build_test_loader(cfg, args.checkpoint.parent)
-    model = _build_model(cfg, device)
-    ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
-    model.load_state_dict(ckpt["model"] if "model" in ckpt else ckpt)
-    print(f"Loaded checkpoint: {args.checkpoint}")
+    if args.checkpoint is not None:
+        loader, label_names, test_signals, fs = _build_test_loader(cfg, args.checkpoint.parent)
+        model = _build_model(cfg, device)
+        ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model"] if "model" in ckpt else ckpt)
+        print(f"Loaded checkpoint: {args.checkpoint}")
 
-    probs, labels = _forward_deterministic(model, loader, device)
-    preds = probs.argmax(axis=1)
+        probs, labels = _forward_deterministic(model, loader, device)
+        preds = probs.argmax(axis=1)
+        model_confidence = probs.max(axis=1)
+        out_root = args.checkpoint.parent
+    else:
+        # Read confidences from an existing eval_*/predictions.csv (UQ output).
+        _, label_names, test_signals, fs = _build_test_loader(cfg, args.run_dir)
+        labels, preds, model_confidence = _load_predictions_csv(args.predictions_csv)
+        print(
+            f"Loaded {len(labels)} predictions from {args.predictions_csv} "
+            f"(confidence range {model_confidence.min():.3f} … {model_confidence.max():.3f})"
+        )
+        if len(labels) != len(test_signals):
+            raise SystemExit(
+                f"length mismatch: predictions={len(labels)} vs test signals={len(test_signals)}. "
+                f"Use the --run-dir that produced the predictions.csv."
+            )
+        out_root = args.predictions_csv.parent
+
     correct = (preds == labels).astype(np.float64)
-    model_confidence = probs.max(axis=1)
-
     print(f"Computing {args.signal_quality} for {len(test_signals)} segments ...")
     sq = _compute_quality(test_signals, fs=fs, key=args.signal_quality)
 
@@ -203,7 +256,7 @@ def main() -> None:
         }
 
     # Summary text + CSV + JSON outputs in a sibling dir to the checkpoint.
-    out_dir = args.checkpoint.parent / "eval_sqi_deferral"
+    out_dir = out_root / f"eval_sqi_deferral{args.tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     csv_path = out_dir / f"sweep_{args.signal_quality}.csv"
@@ -214,7 +267,8 @@ def main() -> None:
             writer.writerow(row)
 
     summary = {
-        "checkpoint": str(args.checkpoint),
+        "checkpoint": str(args.checkpoint) if args.checkpoint else None,
+        "predictions_csv": str(args.predictions_csv) if args.predictions_csv else None,
         "signal_quality": args.signal_quality,
         "weights": [float(w) for w in args.weights],
         "coverages": [float(c) for c in args.coverages],
