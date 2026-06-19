@@ -240,6 +240,8 @@ The gain replicates across UQ methods: MC Dropout (−entropy) drops AURC from 0
 
 This is the empirical claim the paper hinges on: physical signal-quality features carry deferral information the model confidence inherently misses, and a deployed system can add this overnight (no retraining).
 
+**Important caveat** (see [`per_class/findings.md`](docs/baselines/sqi_deferral_v1/per_class/findings.md)): the per-class breakdown shows the aggregate AURC gain is **class-asymmetric and clinically harmful** — AF recall collapses from 0.71 to 0.04 at 50 % coverage. AF is defined by irregular rhythm which produces low spectral SNR, so SNR-weighted deferral systematically rejects the very signature the model uses to detect AF. The corrected story: naive SQI-deferral wins on aggregate AURC but fails clinically; the contribution becomes a negative result + a planned class-conditional fix (defer NSR on low SNR, never penalize SNR for predicted AF).
+
 ### Synth-rPPG v1 (MIT-BIH-derived, kept as small-scale baseline)
 
 Fallback path while OBF / MAHNOB-HCI access is pending. ECG R-peaks → asymmetric Gaussian beat templates at PTT lag → downsample to 30 Hz → noise + baseline wander. AF rhythm signal survives the round-trip: val macro-F1 reaches **0.64** on the single-model run. The three UQ methods run end-to-end on the new data source with the same code. Test accuracy is limited by the narrow MIT-BIH split (test = {210, 200}); the next milestone is scaling AF training data via CinC 2017. Pinned in [`docs/baselines/synth_rppg_v1/findings.md`](docs/baselines/synth_rppg_v1/findings.md).

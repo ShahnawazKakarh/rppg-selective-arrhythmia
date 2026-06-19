@@ -1,5 +1,7 @@
 # SQI-aware deferral v1 — the technical novelty result
 
+> **⚠ Per-class breakdown ([`per_class/findings.md`](per_class/findings.md)) reveals the 18 % aggregate AURC gain is class-asymmetric and clinically harmful: AF recall collapses from 0.71 to 0.04 at 50 % coverage because AF's irregular rhythm is itself a low-SNR signature. Naive SQI-deferral is therefore unsafe for AF screening. The reframed contribution is a *negative result + a class-conditional fix*; see the per-class document for the full analysis.**
+
 **Date:** 2026-06-18
 **Substrate:** synth-rPPG CinC test set (n=6,750, 3-class), single-model checkpoint `runs/synth_rppg_cinc/best.pt` (val_macro_f1=0.596).
 **Deferral score:** rank-normalized linear combination
