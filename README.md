@@ -227,6 +227,17 @@ CinC 2017 AF Challenge (8,244 records, 738 AF) synthesized through the same MIT-
 
 The ordering of the three UQ methods is **not consistent across data sources** — ensembles dominated on MIT-BIH, MC Dropout dominates here. That's a publishable methodological finding in itself: the "best UQ method" question is dataset-dependent.
 
+### Signal-quality-aware deferral v1 — the headline methodological result
+
+Combining model confidence with **spectral SNR** beats UQ-only deferral by 18 % on AURC on the synth-rPPG CinC substrate, with the optimum at w ≈ 0.7 (rank-normalized linear combination). Template SQI barely helps. Same single-model checkpoint, no retraining — the gain is purely from a better ranking score. Full breakdown in [`docs/baselines/sqi_deferral_v1/findings.md`](docs/baselines/sqi_deferral_v1/findings.md).
+
+| SQI feature | UQ-only AURC | Best AURC | Δ | Best w | sel_acc@0.5 |
+|---|---:|---:|---:|---:|---:|
+| template_sqi | 0.2367 | 0.2289 | +0.0078 (3.3 %) | 0.30 | 0.763 → 0.754 |
+| **snr_db** | 0.2367 | **0.1942** | **+0.0425 (18.0 %)** | 0.70 | 0.763 → **0.802** |
+
+This is the empirical claim the paper hinges on: physical signal-quality features carry deferral information the model confidence inherently misses, and a deployed system can add this overnight (no retraining).
+
 ### Synth-rPPG v1 (MIT-BIH-derived, kept as small-scale baseline)
 
 Fallback path while OBF / MAHNOB-HCI access is pending. ECG R-peaks → asymmetric Gaussian beat templates at PTT lag → downsample to 30 Hz → noise + baseline wander. AF rhythm signal survives the round-trip: val macro-F1 reaches **0.64** on the single-model run. The three UQ methods run end-to-end on the new data source with the same code. Test accuracy is limited by the narrow MIT-BIH split (test = {210, 200}); the next milestone is scaling AF training data via CinC 2017. Pinned in [`docs/baselines/synth_rppg_v1/findings.md`](docs/baselines/synth_rppg_v1/findings.md).
@@ -289,7 +300,7 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [ ] Phase-2 results on OBF (AF classification) — pending data access.
 - [ ] CinC 2017 AF Challenge dataset → synth-rPPG at 5–10× current AF training scale. **DONE** — see [`docs/baselines/synth_rppg_cinc_v1/`](docs/baselines/synth_rppg_cinc_v1/).
 - [ ] Separate `data_seed` from `model_seed` for clean deep-ensemble methodology.
-- [ ] Signal-quality-aware deferral evaluated on synth-rPPG CinC substrate (the headline methodological claim).
+- [x] Signal-quality-aware deferral evaluated on synth-rPPG CinC substrate (the headline methodological claim). **SNR-weighted deferral beats UQ-only by 18 % AURC.** Pinned in [`docs/baselines/sqi_deferral_v1/`](docs/baselines/sqi_deferral_v1/).
 - [ ] Evidential Deep Learning training-time integration.
 - [ ] SNGP — spectral-normalized backbone + random-feature GP head.
 - [ ] Demographic-stratified evaluation.
