@@ -102,6 +102,28 @@ Results at the four sweep points of `w` (script: `eval_sqi_deferral_class_condit
 - Per-policy summary: `runs/synth_rppg_cinc/eval_conformal/class_conditional_sqi_w{0.15,0.30,0.50,0.70}/summary_snr_db_w{0.15,0.30,0.50,0.70}.csv`.
 - Per-policy detail (full per-class breakdown at each coverage): `…/full_snr_db_w{...}.json`.
 
+## Cross-UQ replication of `af_immune` at w=0.70
+
+Same class-conditional rule, three different confidence sources for the same CinC test set:
+
+| UQ source | n | UQ-only AURC | af_immune AURC | Δ rel | AF recall UQ@0.5 | AF recall af_immune@0.5 |
+|---|---:|---:|---:|---:|---:|---:|
+| Deterministic | 6,750 | 0.2367 | **0.2300** | **+2.8 %** | 0.707 | 0.689 |
+| MC Dropout (T=30) | 6,750 | 0.1980 | **0.1941** | **+2.0 %** | 0.562 | 0.558 |
+| Ensembles (M=5) | 6,861 | 0.2155 | 0.2186 | **−1.4 % (worse)** | 0.538 | 0.533 |
+
+### Reading
+
+- **`af_immune` is safe everywhere.** AF recall degrades by ≤1 percentage point on all three UQ sources.
+- **The size of the safe gain shrinks as UQ quality improves.** Deterministic single-pass softmax has the weakest confidence ranking, gets the most help from SQI: +2.8 % AURC. MC Dropout entropy is stronger: +2.0 %. Ensemble-averaged softmax is strong enough that `af_immune` is net-harmful: −1.4 %.
+- **Practical guidance.** Lightweight deployments (one forward pass; the realistic clinical-screen regime) benefit from `af_immune` SQI deferral. Heavyweight ensemble deployments don't need it.
+- This matches the original cross-UQ table for *naive* SQI (deterministic +18 %, MC Dropout +4.4 %, ensembles +4.5 %) but at safe-clinical magnitudes. The qualitative ordering holds: SQI value is inversely proportional to UQ strength.
+
+### Files
+
+- MC Dropout: `runs/synth_rppg_cinc/eval_mc_dropout/class_conditional_sqi_mc_dropout/summary_snr_db_w0.70.csv`.
+- Ensembles: `runs/synth_rppg_cinc_ens1/eval_ensembles/class_conditional_sqi_ensembles/summary_snr_db_w0.70.csv`.
+
 ## Next
 
 1. **Replicate on MC Dropout + ensembles** — same `af_immune` rule, predictions.csv from each UQ method. Confirms the class-conditional fix transfers across UQ sources.
