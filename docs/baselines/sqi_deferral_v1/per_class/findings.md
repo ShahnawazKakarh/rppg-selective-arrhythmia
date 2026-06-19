@@ -67,9 +67,43 @@ Test all three on the same CinC checkpoint. Headline metric: AURC at fixed AF-re
 - Code: `scripts/eval_sqi_deferral_per_class.py`.
 - Per-class table: `runs/synth_rppg_cinc/eval_conformal/per_class_sqi_deferral/per_class_snr_db_w0.70.csv`.
 
+## Class-conditional fixes — evaluated
+
+The per-class breakdown above motivated three alternative policies. All evaluated on the same CinC test set + deterministic checkpoint:
+
+- **`af_immune`**: combine SQI for non-AF predictions; pure model confidence for predicted AF.
+- **`within_class`**: rank-normalize SNR *within each predicted class* before combination.
+- **`naive_sqi`** (control): the original SQI rule.
+
+Results at the four sweep points of `w` (script: `eval_sqi_deferral_class_conditional.py`):
+
+| Policy | w | AURC | Δ vs UQ-only | AF recall @0.5 | AF recall @0.7 |
+|---|---:|---:|---:|---:|---:|
+| UQ-only | — | 0.2367 | — | 0.707 | 0.732 |
+| naive_sqi | 0.70 | 0.1942 | −18.0 % AURC, **−664 AF recall pts** | 0.043 | 0.365 |
+| **af_immune** | 0.15 | 0.2362 | −0.2 % | 0.699 | 0.730 |
+| **af_immune** | 0.30 | 0.2345 | −0.9 % | 0.696 | 0.721 |
+| **af_immune** | 0.50 | 0.2326 | −1.7 % | 0.692 | 0.719 |
+| **af_immune** | **0.70** | **0.2300** | **−2.8 %** | **0.689** | **0.717** |
+| within_class | 0.30 | 0.2378 | +0.5 % (worse) | 0.692 | 0.750 |
+| within_class | 0.70 | 0.2569 | +8.5 % (worse) | 0.428 | 0.664 |
+
+## Reading
+
+- `af_immune` improves AURC monotonically with `w`; AF recall degrades by ≤2 percentage points across the entire sweep. Safe and modestly beneficial.
+- `within_class` *degrades* AURC as `w` rises — confirms that rank-normalizing SNR inside the AF predicted class destroys the discriminative information (high-SNR-among-AF-predictions are usually false positives).
+- `naive_sqi` is still in the table as the cautionary control.
+
+**Honest size of the win.** The original 18 % aggregate AURC gain was illusory — it came from dumping AF. Once class safety is enforced (AF recall protected), the available SQI gain is **2-3 % AURC**, an order of magnitude smaller than the naive headline. This is still a real, free, post-hoc improvement, but it's a small one. The publishable contribution is therefore *not* the gain magnitude but the **mechanism**: when class-defining signal correlates with the SQI feature, naive SQI deferral systematically rejects positives, and class-conditional rules are required.
+
+## Files
+
+- Code: `scripts/eval_sqi_deferral_class_conditional.py`.
+- Per-policy summary: `runs/synth_rppg_cinc/eval_conformal/class_conditional_sqi_w{0.15,0.30,0.50,0.70}/summary_snr_db_w{0.15,0.30,0.50,0.70}.csv`.
+- Per-policy detail (full per-class breakdown at each coverage): `…/full_snr_db_w{...}.json`.
+
 ## Next
 
-1. **Implement class-conditional deferral** as above; rerun per-class breakdown. Headline metric: AURC subject to AF recall ≥ 0.70 floor.
-2. **Replicate per-class on MC Dropout + ensembles.** Verify the AF-collapse mechanism is consistent across UQ methods.
-3. **Per-class on MIT-BIH classifier** as the cross-dataset robustness check.
-4. **Update the paper outline** — the contribution is now a negative result + a class-conditional fix, not the naive SQI claim.
+1. **Replicate on MC Dropout + ensembles** — same `af_immune` rule, predictions.csv from each UQ method. Confirms the class-conditional fix transfers across UQ sources.
+2. **Replicate on MIT-BIH classifier** for cross-dataset robustness.
+3. **Update paper outline** — the real contribution is now: (i) naive SQI-deferral fails clinically by a well-defined mechanism (class-defining signal collides with deferral signal); (ii) class-conditional `af_immune` deferral is the safe rule; (iii) the safe gain is 2-3 % AURC; (iv) demonstrated on synth-rPPG and pending replication on real face-video AF data when OBF / MAHNOB-HCI arrives.
