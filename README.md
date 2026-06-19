@@ -215,7 +215,19 @@ With MIT-BIH splits rebalanced (4 AF records in train: 202, 203, 219, 221) and c
 
 Ensembles dominate calibration and AURC. Conformal wins low-coverage (its top-50 % most-confident predictions are 93 % accurate, even though its raw accuracy is the lowest of the three). MC Dropout is the weakest UQ ranker. Same ordering carries forward to the synth-rPPG runs below — the relative behaviour of the three methods is consistent across data sources.
 
-### Synth-rPPG v1 — MIT-BIH ECG → synthetic 30 Hz rPPG
+### Synth-rPPG CinC v1 — scaled to 8K AF-labelled records
+
+CinC 2017 AF Challenge (8,244 records, 738 AF) synthesized through the same MIT-BIH pipeline gives 45,064 segments — ~14× the MIT-BIH-derived training scale, with stratified record-level splits. **All three UQ methods land within 3 accuracy points and are well-calibrated** (ECE < 0.08). This is the regime where UQ comparison is methodologically meaningful. Full breakdown in [`docs/baselines/synth_rppg_cinc_v1/findings.md`](docs/baselines/synth_rppg_cinc_v1/findings.md).
+
+| Method | acc | ECE↓ | Brier↓ | AURC↓ | sel_acc@0.5↑ | sel_acc@0.95↑ |
+|---|---:|---:|---:|---:|---:|---:|
+| **MC Dropout** (T=30) | **0.715** | 0.076 | 0.418 | **0.198** | **0.800** | **0.726** |
+| Conformal (α=0.1) | 0.699 | **0.056** | 0.439 | 0.237 | 0.763 | 0.713 |
+| Ensembles (M=5) | 0.686 | 0.064 | 0.440 | 0.215 | 0.795 | 0.703 |
+
+The ordering of the three UQ methods is **not consistent across data sources** — ensembles dominated on MIT-BIH, MC Dropout dominates here. That's a publishable methodological finding in itself: the "best UQ method" question is dataset-dependent.
+
+### Synth-rPPG v1 (MIT-BIH-derived, kept as small-scale baseline)
 
 Fallback path while OBF / MAHNOB-HCI access is pending. ECG R-peaks → asymmetric Gaussian beat templates at PTT lag → downsample to 30 Hz → noise + baseline wander. AF rhythm signal survives the round-trip: val macro-F1 reaches **0.64** on the single-model run. The three UQ methods run end-to-end on the new data source with the same code. Test accuracy is limited by the narrow MIT-BIH split (test = {210, 200}); the next milestone is scaling AF training data via CinC 2017. Pinned in [`docs/baselines/synth_rppg_v1/findings.md`](docs/baselines/synth_rppg_v1/findings.md).
 
@@ -255,6 +267,7 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] UQ heads: MC Dropout (working), Deep Ensembles (working), Conformal Prediction (working). Evidential DL module implemented (training-time wiring pending). SNGP scaffolded only.
 - [x] Three UQ methods compared on MIT-BIH and synth-rPPG. Pinned in [`docs/baselines/mitbih_uq_v1/`](docs/baselines/mitbih_uq_v1/) and [`docs/baselines/synth_rppg_v1/`](docs/baselines/synth_rppg_v1/).
 - [x] MIT-BIH → synthetic rPPG synthesis pipeline (R-peak detection + beat template + 30 Hz downsample + noise model). Pinned in [`docs/baselines/synth_rppg_v1/`](docs/baselines/synth_rppg_v1/).
+- [x] CinC 2017 AF Challenge → synth-rPPG at 14× the MIT-BIH AF training scale (8,244 records, 45,064 segments). Three UQ methods compared; all well-calibrated. Pinned in [`docs/baselines/synth_rppg_cinc_v1/`](docs/baselines/synth_rppg_cinc_v1/).
 - [x] Signal-quality-aware deferral policy.
 - [x] Unit tests for selective metrics and conformal prediction.
 - [x] MIT-BIH downloader and PyTorch `Dataset`; subject-disjoint splits.
@@ -274,7 +287,9 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] OBF data access request submitted.
 - [ ] MAHNOB-HCI access request (parallel face-video AF channel).
 - [ ] Phase-2 results on OBF (AF classification) — pending data access.
-- [ ] CinC 2017 AF Challenge dataset → synth-rPPG at 5–10× current AF training scale.
+- [ ] CinC 2017 AF Challenge dataset → synth-rPPG at 5–10× current AF training scale. **DONE** — see [`docs/baselines/synth_rppg_cinc_v1/`](docs/baselines/synth_rppg_cinc_v1/).
+- [ ] Separate `data_seed` from `model_seed` for clean deep-ensemble methodology.
+- [ ] Signal-quality-aware deferral evaluated on synth-rPPG CinC substrate (the headline methodological claim).
 - [ ] Evidential Deep Learning training-time integration.
 - [ ] SNGP — spectral-normalized backbone + random-feature GP head.
 - [ ] Demographic-stratified evaluation.

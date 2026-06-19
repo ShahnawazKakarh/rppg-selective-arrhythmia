@@ -109,6 +109,40 @@ def _build_dataset(cfg: dict[str, Any]):
             print(f"auto-split subjects: train {len(train_ids)} | val {len(val_ids)} | test {len(test_ids)}")
         train_idx, val_idx, test_idx = subject_disjoint_split(ds, train_ids, val_ids, test_ids)
         return ds, train_idx, val_idx, test_idx, ds.LABEL_NAMES
+    if source == "synth_rppg_cinc":
+        from rppg_sa.data.cinc2017_synth_torch import (
+            CinCSynthRPPGSegmentDataset,
+            auto_split_records,
+            subject_disjoint_split as cinc_split,
+        )
+
+        ds = CinCSynthRPPGSegmentDataset(
+            root=cfg["data"]["root"],
+            target_fs=float(cfg["data"]["target_fs"]),
+            window_seconds=float(cfg["data"]["window_seconds"]),
+            step_seconds=float(cfg["data"].get("step_seconds", cfg["data"]["window_seconds"])),
+            cache_dir=cfg["data"].get("cache_dir"),
+            synth_seed=int(cfg["data"].get("synth_seed", 42)),
+            noise_sigma=float(cfg["data"].get("noise_sigma", 0.05)),
+            motion_burst_prob=float(cfg["data"].get("motion_burst_prob", 0.0)),
+            lighting_flicker_amp=float(cfg["data"].get("lighting_flicker_amp", 0.0)),
+            max_records=cfg["data"].get("max_records"),
+        )
+        splits = cfg["data"].get("splits")
+        if splits and "train" in splits:
+            train_ids = [str(r) for r in splits["train"]]
+            val_ids = [str(r) for r in splits["val"]]
+            test_ids = [str(r) for r in splits["test"]]
+        else:
+            train_ids, val_ids, test_ids = auto_split_records(
+                cfg["data"]["root"],
+                val_frac=float(cfg["data"].get("val_frac", 0.15)),
+                test_frac=float(cfg["data"].get("test_frac", 0.15)),
+                seed=int(cfg["experiment"]["seed"]),
+            )
+            print(f"auto-split records: train {len(train_ids)} | val {len(val_ids)} | test {len(test_ids)}")
+        train_idx, val_idx, test_idx = cinc_split(ds, train_ids, val_ids, test_ids)
+        return ds, train_idx, val_idx, test_idx, ds.LABEL_NAMES
     raise ValueError(f"Unsupported data source: {source}")
 
 

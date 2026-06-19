@@ -1,0 +1,50 @@
+# CinC 2017 AF Classification Challenge -> synthetic 30 Hz rPPG.
+# ~10x more AF training records than MIT-BIH. 10 s windows because CinC
+# recordings are short (9-60 s); 30 s would drop most records.
+
+experiment:
+  name: synth_rppg_cinc
+  seed: 42
+  device: auto
+
+data:
+  source: synth_rppg_cinc
+  root: data/raw/cinc2017
+  cache_dir: data/processed/synth_rppg_cinc
+  target_fs: 30.0
+  window_seconds: 10.0
+  step_seconds: 5.0          # 50% overlap; CinC records short, want more samples
+  synth_seed: 42
+  noise_sigma: 0.05
+  motion_burst_prob: 0.0
+  lighting_flicker_amp: 0.0
+  val_frac: 0.15
+  test_frac: 0.15
+
+classifier:
+  type: cnn1d_transformer
+  in_channels: 1
+  num_classes: 3              # NSR / AF / Other
+  conv_channels: [32, 64, 128]
+  transformer_layers: 2
+  transformer_heads: 4
+  dropout: 0.4
+
+training:
+  epochs: 30
+  batch_size: 128
+  optimizer: adamw
+  lr: 0.0003
+  weight_decay: 0.0001
+  scheduler: cosine
+  early_stopping_patience: 5
+  class_weighted_loss: true
+
+logging:
+  use_wandb: false
+  project: rppg-selective-arrhythmia
+  entity: null
+  log_dir: runs
+
+checkpoint:
+  save_best_on: val_macro_f1

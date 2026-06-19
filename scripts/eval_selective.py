@@ -92,6 +92,24 @@ def _build_loaders(cfg: dict[str, Any], run_dir: Path, batch_size: int = 64):
             motion_burst_prob=float(cfg["data"].get("motion_burst_prob", 0.0)),
             lighting_flicker_amp=float(cfg["data"].get("lighting_flicker_amp", 0.0)),
         )
+    elif source == "synth_rppg_cinc":
+        from rppg_sa.data.cinc2017_synth_torch import (
+            CinCSynthRPPGSegmentDataset,
+            subject_disjoint_split,
+        )
+
+        ds = CinCSynthRPPGSegmentDataset(
+            root=cfg["data"]["root"],
+            target_fs=float(cfg["data"]["target_fs"]),
+            window_seconds=float(cfg["data"]["window_seconds"]),
+            step_seconds=float(cfg["data"].get("step_seconds", cfg["data"]["window_seconds"])),
+            cache_dir=cfg["data"].get("cache_dir"),
+            synth_seed=int(cfg["data"].get("synth_seed", 42)),
+            noise_sigma=float(cfg["data"].get("noise_sigma", 0.05)),
+            motion_burst_prob=float(cfg["data"].get("motion_burst_prob", 0.0)),
+            lighting_flicker_amp=float(cfg["data"].get("lighting_flicker_amp", 0.0)),
+            max_records=cfg["data"].get("max_records"),
+        )
     else:
         raise ValueError(f"Unsupported data source for eval: {source}")
 
