@@ -245,6 +245,8 @@ Frontier on synth-rPPG CinC test set:
 
 Full derivation and per-method replication in [`docs/baselines/lw_ccsd_v1/findings.md`](docs/baselines/lw_ccsd_v1/findings.md). The paper's contribution: **"LW-CCSD makes the safety/accuracy trade-off in selective rPPG-AF screening explicit and tunable; the clinician picks the operating point."**
 
+**Deployment punchline:** LW-CCSD on a single-pass deterministic classifier hits test AURC **0.1998** — *better than the 5-model ensemble UQ-only baseline (0.2155)*. A lightweight model with the free post-hoc deferral rule outperforms ensemble inference. The cross-UQ replication shows the same pattern observed for naive and `af_immune` SQI: SQI value scales inversely with UQ informativeness. LW-CCSD on weak UQ recovers the most gain; on strong UQ (ensembles) gain compresses to ~3-5%.
+
 ### Signal-quality-aware deferral v1 — the negative finding that motivated LW-CCSD
 
 Combining model confidence with **spectral SNR** beats UQ-only deferral by 18 % on AURC on the synth-rPPG CinC substrate, with the optimum at w ≈ 0.7 (rank-normalized linear combination). Template SQI barely helps. Same single-model checkpoint, no retraining — the gain is purely from a better ranking score. Full breakdown in [`docs/baselines/sqi_deferral_v1/findings.md`](docs/baselines/sqi_deferral_v1/findings.md).
@@ -288,45 +290,42 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 
 ## Roadmap
 
-- [x] Repository scaffolded; package layout, configs, scripts, docs.
-- [x] Classical rPPG extractors: CHROM, POS.
-- [x] MCD-rPPG dataset loader (`db.csv` index + ECG / PPG / video / sync loaders).
-- [x] MediaPipe-based face-ROI extraction (forehead + bilateral cheeks).
-- [x] Windowed HR estimation (per-10 s windows, median aggregation), with per-clip HR std as a deferral feature.
-- [x] MCD-rPPG validation at scale (n=100): POS MAE 12.39 bpm vs PPG-sync GT ([`docs/baselines/mcd_rppg_v2/`](docs/baselines/mcd_rppg_v2/)).
-- [x] Signal-quality metrics: spectral SNR, template SQI.
-- [x] 1D-CNN + Transformer classifier.
-- [x] Selective metrics: risk-coverage, AURC, ECE, Brier, predictive entropy.
-- [x] UQ heads: MC Dropout (working), Deep Ensembles (working), Conformal Prediction (working). Evidential DL module implemented (training-time wiring pending). SNGP scaffolded only.
-- [x] Three UQ methods compared on MIT-BIH and synth-rPPG. Pinned in [`docs/baselines/mitbih_uq_v1/`](docs/baselines/mitbih_uq_v1/) and [`docs/baselines/synth_rppg_v1/`](docs/baselines/synth_rppg_v1/).
-- [x] MIT-BIH → synthetic rPPG synthesis pipeline (R-peak detection + beat template + 30 Hz downsample + noise model). Pinned in [`docs/baselines/synth_rppg_v1/`](docs/baselines/synth_rppg_v1/).
-- [x] CinC 2017 AF Challenge → synth-rPPG at 14× the MIT-BIH AF training scale (8,244 records, 45,064 segments). Three UQ methods compared; all well-calibrated. Pinned in [`docs/baselines/synth_rppg_cinc_v1/`](docs/baselines/synth_rppg_cinc_v1/).
-- [x] Signal-quality-aware deferral policy.
-- [x] Unit tests for selective metrics and conformal prediction.
-- [x] MIT-BIH downloader and PyTorch `Dataset`; subject-disjoint splits.
-- [x] Training loop with class-weighted CE, AdamW + cosine, early stopping, W&B optional, checkpointing.
-- [x] Selective-evaluation script producing `results.json`, `risk_coverage.csv`, `reliability.csv`, `predictions.csv`.
-- [x] First end-to-end run on MIT-BIH (open-data scaffold) — two configurations logged in [`docs/baselines/`](docs/baselines/). Both produced sub-random test accuracy; failures used to inform downstream design (see [Findings](#findings)).
-- [ ] Per-split class-coverage verification utility (catch the v0 failure mode before training).
-- [ ] Focal-loss / progressive-resampling training option (replacing CE-weight scalar).
-- [ ] MediaPipe-based face-ROI extraction wired into the dataset pipeline.
-- [ ] Scale MCD-rPPG validation to all 600 subjects (closes remaining gap to paper's 3.80 bpm POS baseline).
-- [ ] PhysNet learned rPPG extractor — next-step contender for the high-HR sub-harmonic-lock failure mode.
-- [ ] MCD-rPPG dataset adapter for the classifier training loop.
-- [ ] SNGP head — spectral-normalized backbone + random-feature GP.
-- [ ] MCD-rPPG dataset loader (layout-specific code finalized after download).
-- [ ] Phase-1 results on rPPG-10 (independent extractor validation).
-- [ ] Phase-1 classifier training on MCD-rPPG healthy-cohort pulse waveforms.
-- [x] OBF data access request submitted.
-- [ ] MAHNOB-HCI access request (parallel face-video AF channel).
-- [ ] Phase-2 results on OBF (AF classification) — pending data access.
-- [ ] CinC 2017 AF Challenge dataset → synth-rPPG at 5–10× current AF training scale. **DONE** — see [`docs/baselines/synth_rppg_cinc_v1/`](docs/baselines/synth_rppg_cinc_v1/).
-- [ ] Separate `data_seed` from `model_seed` for clean deep-ensemble methodology.
-- [x] Signal-quality-aware deferral evaluated on synth-rPPG CinC substrate (the headline methodological claim). **SNR-weighted deferral beats UQ-only by 18 % AURC.** Pinned in [`docs/baselines/sqi_deferral_v1/`](docs/baselines/sqi_deferral_v1/).
-- [ ] Evidential Deep Learning training-time integration.
-- [ ] SNGP — spectral-normalized backbone + random-feature GP head.
-- [ ] Demographic-stratified evaluation.
-- [ ] arXiv preprint; submission to IEEE J-BHI.
+### Done
+- [x] UQ heads: MC Dropout, Deep Ensembles, Conformal Prediction (working end-to-end).
+- [x] MIT-BIH UQ v1 — three UQ methods compared on a working classifier (pinned).
+- [x] MIT-BIH → synthetic rPPG synthesis pipeline (R-peak detection + beat template + 30 Hz downsample + noise model).
+- [x] CinC 2017 AF Challenge → synth-rPPG at 14× the MIT-BIH AF training scale (8,244 records, 45,064 segments). Three UQ methods compared.
+- [x] Signal-quality-aware deferral: naive SNR-weighted deferral beats UQ-only by 18 % AURC on aggregate but collapses AF recall (intrinsic class-signal collision).
+- [x] Per-class breakdown of the aggregate SQI gain (AF-collapse mechanism).
+- [x] `af_immune` hand-tuned class-conditional rule: safe but conservative.
+- [x] **LW-CCSD — Learned Class-Conditional SQI Deferral** with formal AF-recall-floor constraint. Pareto frontier mapped across three UQ sources. **Deployment punchline:** LW-CCSD on a single-pass deterministic classifier beats the 5-model ensemble UQ-only baseline on test AURC.
+- [x] CITATION.cff + ORCID for GitHub's "Cite this repository" button.
+
+### Up next (high-leverage, low-cost)
+- [ ] **LW-CCSD on MIT-BIH classifier** — cross-dataset robustness of the Pareto frontier shape. ~5 min of compute, no retraining.
+- [ ] **Per-split class-coverage verification utility** — catch the v0 failure mode before training.
+- [ ] **Separate `data_seed` from `model_seed`** for clean deep-ensemble methodology; retrain ensemble, re-evaluate.
+- [ ] **arXiv preprint draft** — the technical story is now coherent enough; LW-CCSD is the contribution; CinC synth-rPPG is the substrate; the Pareto frontier is figure 1; the deployment punchline is the abstract.
+
+### Methodology extensions (paper revisions)
+- [ ] **Conformal LW-CCSD** — replace the hard recall floor with a finite-sample conformal guarantee on AF-recall under exchangeability. Stronger theoretical claim.
+- [ ] **Finer grid + gradient-free optimizer** (Nelder-Mead on val AURC subject to floors) to smooth the small non-monotonicity in the test-side Pareto curve.
+- [ ] **Demographic-stratified evaluation** — stratify by SNR bin / HR bin / record-length bin as a proxy for demographic subpopulations.
+- [ ] **Evidential Deep Learning training-time integration** — 4th UQ method in the comparison table.
+- [ ] **SNGP** — spectral-normalized backbone + random-feature GP head (5th UQ method).
+
+### Data scaling
+- [ ] **MAHNOB-HCI access request** (parallel face-video AF channel).
+- [ ] **Phase-2 results on OBF / MAHNOB-HCI** — pending data access. When face-video AF data arrives, LW-CCSD is the first experiment to run.
+- [ ] **Phase-1 classifier training on MCD-rPPG healthy-cohort pulse waveforms** (revisited if useful for a robustness section).
+
+### rPPG extractor work (deferred)
+- [ ] **MediaPipe-based face-ROI extraction wired into the dataset pipeline** (currently used only in scripts/validate_rppg_on_mcd.py).
+- [ ] **Scale MCD-rPPG validation to all 600 subjects** (currently 100). Closes remaining gap to paper's 3.80 bpm POS baseline.
+- [ ] **PhysNet learned rPPG extractor** — next-step contender for the high-HR sub-harmonic-lock failure mode observed on MCD-rPPG.
+
+### Training infrastructure (low priority)
+- [ ] **Focal-loss / progressive-resampling training option** (replacing CE-weight scalar).
 
 ## How to cite
 
