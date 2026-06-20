@@ -82,6 +82,13 @@ def _build_val_loader(cfg: dict[str, Any], run_dir: Path, batch_size: int = 64):
             motion_burst_prob=float(cfg["data"].get("motion_burst_prob", 0.0)),
             lighting_flicker_amp=float(cfg["data"].get("lighting_flicker_amp", 0.0)),
         )
+    elif source == "mitbih":
+        from rppg_sa.data.mitbih_torch import MITBIHSegmentDataset, subject_disjoint_split
+        ds = MITBIHSegmentDataset(
+            root=cfg["data"]["root"],
+            target_fs=float(cfg["data"]["target_fs"]),
+            window_seconds=float(cfg["data"]["window_seconds"]),
+        )
     else:
         raise ValueError(f"Unsupported data source: {source}")
 

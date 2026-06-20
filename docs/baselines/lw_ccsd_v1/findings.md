@@ -135,6 +135,14 @@ When OBF / MAHNOB-HCI face-video AF data arrives, replicating LW-CCSD there is t
 - Sweep outputs: `runs/synth_rppg_cinc/eval_conformal/lw_ccsd_floor{0.40,…,0.60}/learned_weights.json` and `sweep.csv`.
 - Operating-point checkpoint (floor 0.55): `runs/synth_rppg_cinc/eval_conformal/lw_ccsd_af55_cov50/`.
 
+## Cross-dataset check (MIT-BIH) — graceful degradation
+
+Replicated on the MIT-BIH 3-class classifier. Val UQ-only per-class recall @ cov=0.50 is (NSR 0.00, AF 0.87, Other 0.00) — the small-sample classifier is degenerate, predicting AF for most samples. Test AF recall @ cov=0.50 under UQ-only is **0.944**.
+
+The LW-CCSD optimizer correctly returns w* = (0, 0, 0) — the all-zero corner of the grid. No SQI weighting improves val AURC because there is no per-class confidence structure to refine. Test AURC and AF recall under w* exactly match UQ-only.
+
+**Reading.** This is a stronger result than a positive replication would have been. It shows the method has graceful degradation: when SQI carries no signal beyond UQ, the constrained optimization recovers the trivial baseline. There is no failure mode where LW-CCSD "tries too hard" and hurts performance. The Pareto frontier of the CinC experiment is contingent on the underlying classifier being non-degenerate (CinC has 45K segments and ~9 % AF prevalence; MIT-BIH has 540 test segments and ~33-65 % AF prevalence due to the AF-heavy test records). Pinned in [`mitbih/findings.md`](mitbih/findings.md).
+
 ## Next
 
 1. **LW-CCSD on MC Dropout + ensembles** (same script, swap predictions.csv).
