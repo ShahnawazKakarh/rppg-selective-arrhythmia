@@ -79,8 +79,10 @@ def fig_naive_sqi_failure(out: Path, width: float) -> None:
     )
     fig.tight_layout(pad=0.3)
     fig.savefig(out, format="pdf", bbox_inches="tight", pad_inches=0.02)
+    fig.savefig(out.with_suffix(".png"), format="png", dpi=300,
+                bbox_inches="tight", pad_inches=0.02)
     plt.close(fig)
-    print(f"  wrote {out}")
+    print(f"  wrote {out} (+ .png)")
 
 
 # ----------------------------------------------------------------------
@@ -128,8 +130,10 @@ def fig_pareto_frontier(out: Path, width: float) -> None:
     ax.legend(loc="upper right", framealpha=0.95)
     fig.tight_layout(pad=0.3)
     fig.savefig(out, format="pdf", bbox_inches="tight", pad_inches=0.02)
+    fig.savefig(out.with_suffix(".png"), format="png", dpi=300,
+                bbox_inches="tight", pad_inches=0.02)
     plt.close(fig)
-    print(f"  wrote {out}")
+    print(f"  wrote {out} (+ .png)")
 
 
 # ----------------------------------------------------------------------
@@ -175,8 +179,10 @@ def fig_snr_distribution(out: Path, width: float, config_path: Path, run_dir: Pa
     ax.legend(loc="upper right", framealpha=0.95)
     fig.tight_layout(pad=0.3)
     fig.savefig(out, format="pdf", bbox_inches="tight", pad_inches=0.02)
+    fig.savefig(out.with_suffix(".png"), format="png", dpi=300,
+                bbox_inches="tight", pad_inches=0.02)
     plt.close(fig)
-    print(f"  wrote {out}")
+    print(f"  wrote {out} (+ .png)")
     print(f"  per-class median SNR: " + ", ".join(
         f"{n}={np.median(snr_per_class[c]):.2f} dB" for c, n in zip(range(3), labels)
     ))

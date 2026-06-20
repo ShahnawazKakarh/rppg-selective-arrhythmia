@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Learned Class-Conditional Signal-Quality Deferral for Selective rPPG-Based Atrial Fibrillation Screening</title>
+</head>
+<body>
+
+<!-- ================= COVER ================= -->
+<section class="cover">
+    <div class="cover-eyebrow">Technical Report · IEEE J-BHI Submission Draft</div>
+    <h1 class="cover-title">Learned Class-Conditional Signal-Quality Deferral for Selective rPPG-Based Atrial Fibrillation Screening</h1>
+    <div class="cover-subtitle">A tunable safety / accuracy trade-off for contactless cardiac screening</div>
+    <hr class="cover-divider">
+    <div class="cover-author">Muhammad Shahnawaz Khan</div>
+    <div class="cover-author-meta">Independent Researcher · Lahore, Pakistan · ORCID 0009-0007-4055-6563</div>
+    <div class="cover-date">June 2026 · v1.0.0</div>
+    <hr class="cover-divider">
+    <div class="cover-bottom">
+        <span class="label">Code &amp; Data:</span> github.com/ShahnawazKakarh/rppg-selective-arrhythmia<br>
+        <span class="label">Licence:</span> MIT
+    </div>
+</section>
+
+<!-- ================= ABSTRACT ================= -->
+<section class="abstract">
+<h2>Abstract</h2>
+<p>Contactless atrial fibrillation (AF) screening from facial-video remote photoplethysmography (rPPG) is an attractive opportunistic-screening modality, but deployment requires the model to abstain on segments it cannot classify safely. Standard selective-prediction methods rank samples by model confidence alone, ignoring the physical signal-quality information available from the rPPG pulse waveform itself. We study post-hoc deferral policies that combine model confidence with spectral signal-to-noise ratio (SNR) in the cardiac band. We first show that a na&iuml;ve linear combination achieves an apparent 18&thinsp;% relative improvement in area under the risk-coverage curve (AURC) over uncertainty-only deferral on a 45,064-segment synthetic-rPPG benchmark derived from the PhysioNet/CinC 2017 AF Challenge &mdash; but this aggregate gain is clinically harmful: AF recall at 50&thinsp;% coverage collapses from 0.71 to 0.04 because AF&rsquo;s irregular rhythm is itself a low-SNR signature in the cardiac band, so the deferral rule systematically rejects positives. We then introduce <strong>Learned Class-Conditional Signal-Quality Deferral (LW-CCSD)</strong>, a constrained-grid-search procedure that estimates per-predicted-class quality weights on validation data subject to a configurable AF-recall floor. LW-CCSD makes the safety / accuracy trade-off explicit and tunable: across the Pareto frontier we measure +4.1&thinsp;% AURC improvement at &le;&thinsp;0.01 AF-recall cost, scaling to +15.6&thinsp;% AURC at 8 percentage-point AF cost. The method generalises across three uncertainty quantification methods (deterministic single-pass softmax, MC Dropout, deep ensembles). Strikingly, LW-CCSD applied to a single-forward-pass classifier achieves better selective performance than a five-model deep ensemble without LW-CCSD, suggesting the method can substitute for compute-expensive ensembling in deployed clinical screens.</p>
+<p class="keywords"><span class="label">Index terms&mdash;</span> Remote photoplethysmography (rPPG), atrial fibrillation, selective prediction, uncertainty quantification, conformal prediction, calibration, contactless cardiac screening, signal quality, deferral policies.</p>
+</section>
+
+<!-- ================= INTRODUCTION ================= -->
+<h1><span class="section-num">1</span>Introduction</h1>
+<p>Atrial fibrillation (AF) is the most common sustained cardiac arrhythmia and a major risk factor for stroke. It is frequently asymptomatic and paroxysmal, so opportunistic screening outside clinical settings has high public-health value. Remote photoplethysmography (rPPG), which recovers a pulse waveform from skin-colour variation in face video, has emerged as a promising contactless modality. Recent studies report high accuracy for rPPG-based AF detection. However, none report risk-coverage curves, calibration error, or principled deferral policies. rPPG signal quality varies sharply with motion, lighting, skin tone, frame rate, and camera quality, so a confident prediction on a low-quality signal is not deployable.</p>
+<p>This work formalises rPPG-based AF screening as a <em>selective-prediction</em> problem: a system that defers cases it cannot classify safely. We make three contributions:</p>
+<ol>
+    <li>We benchmark three uncertainty-quantification (UQ) methods &mdash; MC Dropout, deep ensembles, and conformal prediction &mdash; on a 45,064-segment synthetic-rPPG substrate derived from the PhysioNet/CinC 2017 AF Challenge. The best UQ method is dataset-dependent, with consistent rankings across two real ECG datasets.</li>
+    <li>We identify and explain a clinically-harmful failure mode in na&iuml;ve signal-quality-aware deferral: combining model confidence with spectral SNR boosts aggregate AURC by 18&thinsp;% but collapses AF recall from 0.71 to 0.04 at 50&thinsp;% coverage, because AF&rsquo;s irregular rhythm is itself a low-SNR signature.</li>
+    <li>We introduce Learned Class-Conditional Signal-Quality Deferral (LW-CCSD), a post-hoc, model-agnostic procedure that learns per-predicted-class quality weights subject to a configurable AF-recall floor. LW-CCSD makes the safety / accuracy trade-off explicit and tunable, recovering 80&thinsp;% of the na&iuml;ve aggregate gain while preserving AF recall.</li>
+</ol>
+<p>A deployment-relevant corollary: LW-CCSD applied to a single-pass deterministic classifier outperforms an unaugmented 5-model deep ensemble. Lightweight inference plus the free post-hoc deferral rule can replace compute-expensive ensembling.</p>
+
+<!-- ================= RELATED WORK ================= -->
+<h1><span class="section-num">2</span>Related Work</h1>
+
+<h2>2.1&nbsp;&nbsp;rPPG-Based AF Detection</h2>
+<p>Remote photoplethysmography (rPPG) recovers the cardiac pulse waveform from periodic colour modulations of facial skin in standard RGB video. Classical extractors &mdash; CHROM [1] and POS [2] &mdash; combine the colour channels by a fixed projection designed to suppress motion-correlated noise. Learned end-to-end extractors &mdash; PhysNet [3] and successors &mdash; replace this projection with a CNN trained on paired video / contact-PPG corpora and substantially close the gap to clinical-grade sensors under cooperative conditions.</p>
+<p>AF detection from rPPG has been demonstrated on dedicated corpora. The OBF database [4] contains 200 subjects, of whom 100 are paroxysmal AF patients recorded both pre- and post-cardioversion; this remains the standard benchmark for face-video AF screening but is gated and not in general circulation. Yan <em>et al.</em> [5] reported high accuracy for an AF screening pipeline using consumer-grade smartphone cameras on 217 hospitalised subjects. Reported metrics in both lines of work are dominated by point accuracy and ROC-AUC; we are not aware of any rPPG-AF study that publishes risk-coverage curves, calibration error, or principled deferral policies on inputs that are ambiguous due to motion, occlusion, or low signal quality. This omission is the gap the present work addresses.</p>
+
+<h2>2.2&nbsp;&nbsp;Uncertainty Quantification for Medical AI</h2>
+<p>Uncertainty quantification (UQ) in deep neural networks for medical imaging and physiology has converged on a small set of practical methods. Monte-Carlo Dropout [6] treats inference-time dropout as approximate variational inference over the weight posterior, yielding predictive uncertainty at the cost of <em>T</em> stochastic forward passes. Deep Ensembles [7] aggregate <em>M</em> independently trained models and remain competitive with more elaborate Bayesian approaches in calibration and out-of-distribution detection. Evidential Deep Learning [8] reframes classification as inferring the parameters of a Dirichlet over the simplex, separating data uncertainty from epistemic uncertainty in a single forward pass. SNGP [9] achieves distance-aware uncertainty by combining a spectrally-normalised feature extractor with a Gaussian-process classifier head. Split conformal prediction [10] provides distribution-free finite-sample coverage guarantees by calibrating a non-conformity threshold on a held-out set.</p>
+<p>Selective classification [11] couples a base classifier with an abstention head, traded off against a target coverage. Calibration is typically reported via the Expected Calibration Error [12] or the Brier score. None of these methods individually incorporate physical signal-quality information, which is the augmentation we study here.</p>
+
+<h2>2.3&nbsp;&nbsp;Signal-Quality-Aware Deferral</h2>
+<p>In the PPG and rPPG literature, signal-quality indices (SQIs) are conventionally used as a <em>hard gate</em>: segments with SQI below a threshold are dropped before classification, and only the remainder is scored. This approach has two limitations. First, it conflates &ldquo;too low to use&rdquo; with &ldquo;low but classifiable with appropriate caution&rdquo;; a continuous quality score discarded at the gate cannot be re-introduced as a calibration signal downstream. Second, the gate threshold is set without reference to the classifier&rsquo;s own uncertainty, so high-confidence predictions on borderline signals are over-rejected and low-confidence predictions on clean signals are under-rejected.</p>
+<p>Class-conditional selective prediction has been studied in ordinal medical classification by the present author in the context of diabetic-retinopathy grading, where ordinal proximity of misclassification cost motivates per-class confidence thresholds. The present work extends the class-conditional principle in a new direction: rather than calibrating against misclassification cost, we combine model confidence with an auxiliary <em>physical</em> sensor-quality feature, learn the mixing weight per predicted class, and constrain the optimisation against a per-class recall floor. To the best of our knowledge this combination &mdash; post-hoc class-conditional auxiliary-feature deferral with formal recall-floor constraints &mdash; has not previously appeared in either the rPPG, the cardiac-classification, or the selective-prediction literatures.</p>
+
+<!-- ================= METHODS ================= -->
+<h1><span class="section-num">3</span>Methods</h1>
+
+<h2>3.1&nbsp;&nbsp;Synthetic rPPG from ECG</h2>
+<p>Real paired face-video / AF-label corpora are scarce. To enable controlled methodological experiments at scale, we synthesise rPPG-style pulse waveforms from publicly available single-lead ECG recordings. The synthesis preserves the rhythm component that AF classifiers ultimately rely on while abstracting away rPPG-specific morphological details (dicrotic notch, beat-to-beat amplitude variation tied to skin perfusion) that are also poorly recovered by camera-based rPPG.</p>
+<p>Given an ECG signal at sampling rate <em>f<sub>s</sub><sup>ECG</sup></em>, we detect R-peaks {<em>t<sub>k</sub></em>} with NeuroKit2&rsquo;s Pan&ndash;Tompkins-derived detector. For each R-peak we place a beat template at lag <em>&tau;</em><sub>PTT</sub>&thinsp;=&thinsp;0.20&thinsp;s representing the pulse-transit-time delay between cardiac depolarisation and the systolic peak in the periphery. The beat template is an asymmetric Gaussian with peak position <em>&rho;</em>&thinsp;=&thinsp;0.4 along the beat duration <em>T<sub>k</sub></em>&thinsp;=&thinsp;min(<em>t</em><sub>k+1</sub>&thinsp;&minus;&thinsp;<em>t<sub>k</sub></em>, 0.5&thinsp;<em>f<sub>s</sub><sup>ECG</sup></em>):</p>
+
+<div class="eq">
+<em>g</em>(<em>s</em>;&nbsp;<em>&rho;</em>,&nbsp;<em>T<sub>k</sub></em>) = exp(&minus;&frac12;&thinsp;(<em>s</em>&thinsp;&minus;&thinsp;<em>&rho;T<sub>k</sub></em>)<sup>2</sup>&thinsp;/&thinsp;<em>&sigma;</em>(<em>s</em>)<sup>2</sup>),&nbsp;&nbsp;&nbsp;<em>s</em>&thinsp;&isin;&thinsp;[0,&thinsp;<em>T<sub>k</sub></em>]
+<span class="eq-num">(1)</span>
+</div>
+
+<p>with <em>&sigma;</em>(<em>s</em>)&thinsp;=&thinsp;<em>&rho;T<sub>k</sub></em>/2.5 for <em>s</em>&thinsp;&le;&thinsp;<em>&rho;T<sub>k</sub></em> and <em>&sigma;</em>(<em>s</em>)&thinsp;=&thinsp;(1&thinsp;&minus;&thinsp;<em>&rho;</em>)<em>T<sub>k</sub></em>/2.5 otherwise (giving a short rising edge and a longer falling edge, matching the dominant systolic morphology recovered by rPPG). Each placed beat is scaled by 1&thinsp;+&thinsp;0.05&thinsp;<em>&epsilon;<sub>k</sub></em>, <em>&epsilon;<sub>k</sub></em>&thinsp;&sim;&thinsp;<em>N</em>(0,&thinsp;1).</p>
+<p>After beat placement the signal is corrupted with respiratory baseline wander 0.15&thinsp;sin(2&pi;<em>f<sub>b</sub>t</em>) at <em>f<sub>b</sub></em>&thinsp;=&thinsp;0.15&thinsp;Hz, optionally with motion bursts and 4&thinsp;Hz lighting flicker (both disabled in the main experiments to keep the controlled setting clean), then resampled from <em>f<sub>s</sub><sup>ECG</sup></em> to the target camera frame rate <em>f<sub>s</sub><sup>rPPG</sup></em>&thinsp;=&thinsp;30&thinsp;Hz by rational polyphase resampling. Post-resample additive Gaussian noise with <em>&sigma;</em>&thinsp;=&thinsp;0.05 models residual camera and quantisation noise. The waveform is finally z-score normalised.</p>
+<p>Labels are inherited at the record level for the PhysioNet/CinC 2017 substrate (each record receives a single label from REFERENCE.csv: N&thinsp;&rarr;&thinsp;NSR, A&thinsp;&rarr;&thinsp;AF, O&thinsp;&rarr;&thinsp;Other; noisy records labelled &tilde; are dropped before training). For MIT-BIH the per-rhythm annotations are interpolated onto the 30&thinsp;Hz target rate to attribute each 10-s window to the dominant rhythm annotation in that window.</p>
+
+<h2>3.2&nbsp;&nbsp;Classifier and Uncertainty Heads</h2>
+<p>The base classifier is a 1D-CNN&thinsp;&rarr;&thinsp;Transformer encoder operating on 10-second (300-sample at 30&thinsp;Hz) windows. The CNN stem has three convolutional blocks with output channels (32, 64, 128), each block consisting of a 1D convolution, batch normalisation, ReLU, and stride-2 max-pooling. The Transformer encoder operates over the resulting (channels, length) sequence with 2 layers, 4 attention heads, and a feed-forward width of 256. Mean-pooling across the sequence axis feeds a linear classification head over the three classes. Dropout at probability <em>p</em>&thinsp;=&thinsp;0.4 is inserted after each convolutional block and inside the Transformer feed-forward sublayers; this is the source of the stochasticity used by MC Dropout inference.</p>
+<p>Training minimises class-weighted cross-entropy with weights inversely proportional to class frequency (CinC: <strong>w</strong><sub>CE</sub>&thinsp;=&thinsp;(0.56, 3.79, 1.05)). The optimiser is AdamW (learning rate 3&times;10<sup>&minus;4</sup>, weight decay 10<sup>&minus;4</sup>) with cosine schedule and early stopping (patience 5 epochs) on validation macro-F1.</p>
+<p>Three UQ heads are evaluated against the same base classifier without architectural change:</p>
+<ul>
+    <li><em>Monte-Carlo Dropout</em> keeps dropout active at inference and averages softmax probabilities over <em>T</em>&thinsp;=&thinsp;30 stochastic forward passes; predictive entropy serves as the confidence rank.</li>
+    <li><em>Deep Ensembles</em> train <em>M</em>&thinsp;=&thinsp;5 independent models with different initialisation seeds and average their softmax outputs; the maximum averaged class probability is used as confidence.</li>
+    <li><em>Split Conformal Prediction</em> calibrates a non-conformity threshold <em>q̂</em><sub>&alpha;</sub> on the validation set at miscoverage <em>&alpha;</em>&thinsp;=&thinsp;0.1; the deterministic max-softmax probability is used as the continuous confidence ranking for selective evaluation, while the conformal set sizes are reported separately.</li>
+</ul>
+
+<h2>3.3&nbsp;&nbsp;Selective Evaluation</h2>
+<p>Let <em>p̂</em>(<em>x</em>) denote the confidence score assigned to input <em>x</em> by a UQ method, with higher values corresponding to higher predicted reliability. For a chosen coverage <em>c</em>&thinsp;&isin;&thinsp;(0,&thinsp;1], the selective classifier retains the top-&lceil;<em>cn</em>&rceil; predictions ranked by <em>p̂</em>(<em>x</em>) on a test set of <em>n</em> samples and abstains on the rest. We report selective accuracy at coverage <em>c</em>, the risk-coverage curve, area under the risk-coverage curve (AURC, lower is better), Expected Calibration Error [12] with 15 confidence bins, the multi-class Brier score, and per-class recall at coverage (#{correct kept predictions of class <em>c</em>} divided by #{class <em>c</em> in test}, so deferred samples count as missed). The per-class recall metric is what makes the AF-collapse failure mode of na&iuml;ve SQI deferral visible; aggregate accuracy or AURC alone hide it.</p>
+
+<h2>3.4&nbsp;&nbsp;Signal-Quality Features</h2>
+<p>Two signal-quality features are computed per 10-second window from the 30&thinsp;Hz pulse waveform after bandpass filtering to the cardiac band [0.7, 3.0]&thinsp;Hz:</p>
+<ul>
+    <li><em>Spectral SNR</em> (dB): 10&thinsp;log<sub>10</sub>(<em>P</em><sub>in</sub>&thinsp;/&thinsp;<em>P</em><sub>out</sub>) where <em>P</em><sub>in</sub> is the integrated periodogram power in [0.7, 3.0]&thinsp;Hz and <em>P</em><sub>out</sub> is the power in [3.0, <em>f<sub>s</sub></em>/2]&thinsp;Hz. Regular rhythm concentrates power near the fundamental heart-rate frequency, raising SNR; irregular rhythm distributes power across the cardiac band, lowering it.</li>
+    <li><em>Template SQI</em>: mean Pearson correlation between each detected beat and the median template across the window. Robust to amplitude variation but sensitive to overall waveform morphology.</li>
+</ul>
+<p>Both features are computed deterministically at inference time without retraining and without access to ground-truth labels.</p>
+
+<h2>3.5&nbsp;&nbsp;Class-Conditional Deferral Policies</h2>
+<p>We compare four scoring functions for selective prediction. Let <em>p̂</em>(<em>x</em>) denote model confidence, <em>q</em>(<em>x</em>) the signal-quality feature (rank-normalised within the test set), and <em>ĉ</em>(<em>x</em>) the predicted class.</p>
+
+<div class="eq">
+UQ-only:&nbsp;&nbsp;&nbsp;<em>s</em><sub>0</sub>(<em>x</em>) = rank(<em>p̂</em>(<em>x</em>))<span class="eq-num">(2)</span>
+</div>
+<div class="eq">
+Na&iuml;ve SQI:&nbsp;&nbsp;&nbsp;<em>s<sub>w</sub></em>(<em>x</em>) = (1&thinsp;&minus;&thinsp;<em>w</em>)&thinsp;rank(<em>p̂</em>(<em>x</em>))&thinsp;+&thinsp;<em>w</em>&thinsp;rank(<em>q</em>(<em>x</em>))<span class="eq-num">(3)</span>
+</div>
+<div class="eq">
+AF-immune:&nbsp;&nbsp;&nbsp;<em>s<sub>w</sub></em><sup>AI</sup>(<em>x</em>) = rank(<em>p̂</em>(<em>x</em>)) if <em>ĉ</em>(<em>x</em>) = AF, else <em>s<sub>w</sub></em>(<em>x</em>)<span class="eq-num">(4)</span>
+</div>
+<div class="eq">
+LW-CCSD:&nbsp;&nbsp;&nbsp;<em>s</em><sub><strong>w</strong></sub><sup>LW</sup>(<em>x</em>) = (1&thinsp;&minus;&thinsp;<em>w<sub>ĉ</sub></em><sub>(<em>x</em>)</sub>)&thinsp;rank(<em>p̂</em>(<em>x</em>))&thinsp;+&thinsp;<em>w<sub>ĉ</sub></em><sub>(<em>x</em>)</sub>&thinsp;rank(<em>q</em>(<em>x</em>))<span class="eq-num">(5)</span>
+</div>
+
+<p>In LW-CCSD, <strong>w</strong>&thinsp;=&thinsp;(<em>w</em><sub>NSR</sub>, <em>w</em><sub>AF</sub>, <em>w</em><sub>Other</sub>) is learned by constrained grid search on the validation set:</p>
+
+<div class="eq">
+<strong>w</strong>* = argmin<sub><strong>w</strong>&isin;[0,1]<sup>3</sup></sub> AURC<sub>val</sub>(<em>s</em><sub><strong>w</strong></sub><sup>LW</sup>)<span class="eq-num">(6)</span>
+</div>
+<div class="eq">
+subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>w</strong></sub><sup>LW</sup>; <em>c</em><sub>0</sub>) &ge; <em>f<sub>c</sub></em> &nbsp;&forall;&thinsp;<em>c</em><span class="eq-num">(7)</span>
+</div>
+
+<p>where recall<sub>val</sub><sup>(<em>c</em>)</sup>(<em>s</em>; <em>c</em><sub>0</sub>) denotes class-<em>c</em> recall on val at coverage <em>c</em><sub>0</sub>, and <em>f<sub>c</sub></em> is the per-class recall floor.</p>
+
+<!-- ================= EXPERIMENTAL SETUP ================= -->
+<h1><span class="section-num">4</span>Experimental Setup</h1>
+
+<h2>4.1&nbsp;&nbsp;Datasets</h2>
+<p>We evaluate on two single-lead ECG corpora, both rendered as synthetic rPPG via the pipeline above.</p>
+<p><strong>PhysioNet/CinC 2017 AF Challenge [13].</strong> The training portion of the challenge release contains 8,528 recordings between 9 and 60 seconds at 300&thinsp;Hz, labelled N (5,050), A (738), O (2,456), or &tilde; (284). We drop the 284 noisy recordings and synthesise rPPG from the remaining 8,244. Records are stratified by class and split 70/15/15 at the record level (subject-disjoint by construction since each recording is from a distinct subject). Windowing at 10&thinsp;s with a 5&thinsp;s hop yields 45,064 windowed segments (NSR 26,898 / AF 3,942 / Other 14,224). This is the main benchmark.</p>
+<p><strong>MIT-BIH Arrhythmia Database [14].</strong> 47 patient recordings at 360&thinsp;Hz with expert beat- and rhythm-level annotations. We assign each 10&thinsp;s window the dominant rhythm annotation and group rhythms into NSR / AF / Other consistent with the CinC label scheme. AF-bearing records (201, 202, 203, 210, 219, 221, 222) are distributed across train, val, and test (train: 202, 203, 219, 221; val: 201, 222; test: 210) to ensure no fold has zero positives. Total: 8,640 segments (NSR 6,300 / AF 790 / Other 1,550), split 7,020 / 540 / 540. MIT-BIH is used as a cross-dataset robustness check rather than the main benchmark; it is too small for meaningful UQ comparison (only 4 AF records in train) but is informative as a graceful-degradation control for the LW-CCSD method.</p>
+
+<h2>4.2&nbsp;&nbsp;Implementation</h2>
+<p>All experiments use PyTorch&thinsp;2.x; training runs on Apple Silicon MPS with CUDA portability validated. Synthesis caches per-record .npy pulse waveforms (~30&thinsp;MB total for CinC, ~10&thinsp;MB for MIT-BIH) so subsequent training epochs and evaluations skip the synthesis step. End-to-end reproducibility: the released repository contains all code, configurations, and trained checkpoints; the synthesis cache rebuilds from the public CinC and MIT-BIH downloads in approximately 20&thinsp;minutes of CPU time on a recent laptop. Licence: MIT. Repository: <a href="https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia">github.com/ShahnawazKakarh/rppg-selective-arrhythmia</a>.</p>
+
+<h2>4.3&nbsp;&nbsp;Evaluation Protocol</h2>
+<p>The validation set serves two distinct purposes that are kept methodologically separate: (a) early-stopping during classifier training (macro-F1), and (b) calibration / weight selection at evaluation time, for the conformal threshold <em>q̂</em><sub>&alpha;</sub> and for the LW-CCSD weight vector <strong>w</strong>*. The test set is held out from all selection.</p>
+<p>All selective-prediction metrics (AURC, selective accuracy at coverage, per-class recall) are computed on the test set with the operating point fixed by the validation procedure. The LW-CCSD constraint coverage is set to <em>c</em><sub>0</sub>&thinsp;=&thinsp;0.50 <em>a priori</em> as the most adversarial setting &mdash; per-class recall degrades fastest at low coverage &mdash; and reported throughout. Sweeping the AF-recall floor at fixed <em>c</em><sub>0</sub> yields the Pareto frontier reported in Section&thinsp;5.</p>
+
+<!-- ================= RESULTS ================= -->
+<h1><span class="section-num">5</span>Results</h1>
+
+<h2>5.1&nbsp;&nbsp;UQ Benchmark on Synthetic rPPG</h2>
+<p>Table&thinsp;1 compares the three uncertainty heads on the CinC test set.</p>
+
+<table class="keep-together">
+<caption><strong>Table 1.</strong> UQ benchmark on synth-rPPG (CinC test, <em>n</em>&thinsp;=&thinsp;6,750). Best per column in <strong>bold</strong>.</caption>
+<thead>
+<tr><th>Method</th><th class="num">Acc</th><th class="num">ECE&thinsp;&darr;</th><th class="num">Brier&thinsp;&darr;</th><th class="num">AURC&thinsp;&darr;</th></tr>
+</thead>
+<tbody>
+<tr><td>MC Dropout (<em>T</em>&thinsp;=&thinsp;30)</td><td class="num best">0.715</td><td class="num">0.076</td><td class="num">0.418</td><td class="num best">0.198</td></tr>
+<tr><td>Conformal (<em>&alpha;</em>&thinsp;=&thinsp;0.1)</td><td class="num">0.699</td><td class="num best">0.056</td><td class="num">0.439</td><td class="num">0.237</td></tr>
+<tr><td>Ensembles (<em>M</em>&thinsp;=&thinsp;5)</td><td class="num">0.686</td><td class="num">0.064</td><td class="num">0.440</td><td class="num">0.215</td></tr>
+</tbody>
+</table>
+
+<p>All three are within 3 accuracy points and 0.03 ECE of each other &mdash; the 45,064-segment substrate produces a well-calibrated base classifier on which UQ methods make finer-grained distinctions. The ranking is not consistent across metrics: MC Dropout wins accuracy and AURC, Conformal wins ECE, Ensembles wins neither on this dataset. The substrate effect dominates the method choice: on a working classifier with realistic class balance, the three UQ methods are roughly interchangeable on aggregate metrics. The per-class story (Section&thinsp;5.2) is what separates them in deployment relevance.</p>
+
+<h2>5.2&nbsp;&nbsp;Na&iuml;ve SQI Deferral: An 18&thinsp;% Gain That Is Clinically Harmful</h2>
+<p>We next combine model confidence with the spectral SNR feature via a single shared weight <em>w</em>. Sweeping <em>w</em> on the CinC test set yields a monotone improvement in aggregate AURC up to <em>w</em>&thinsp;=&thinsp;0.70, where the AURC reaches 0.1942 &mdash; an 18.0&thinsp;% relative improvement over the UQ-only baseline of 0.2367. By the aggregate metric this is the largest single-feature gain we observe anywhere in this work.</p>
+<p>The per-class breakdown in Table&thinsp;2 reveals the cost.</p>
+
+<table class="keep-together">
+<caption><strong>Table 2.</strong> Na&iuml;ve SQI deferral (<em>w</em>&thinsp;=&thinsp;0.70). Aggregate AURC improves but AF recall collapses. CinC test set, <em>n</em>&thinsp;=&thinsp;6,750.</caption>
+<thead>
+<tr><th>Coverage</th><th class="num">UQ-only AF recall</th><th class="num">Na&iuml;ve SQI AF recall</th></tr>
+</thead>
+<tbody>
+<tr><td>0.50</td><td class="num">0.707</td><td class="num bad">0.043</td></tr>
+<tr><td>0.70</td><td class="num">0.732</td><td class="num bad">0.365</td></tr>
+<tr><td>0.80</td><td class="num">0.764</td><td class="num">0.637</td></tr>
+<tr><td>0.95</td><td class="num">0.814</td><td class="num">0.778</td></tr>
+<tr><td>1.00</td><td class="num">0.828</td><td class="num">0.828</td></tr>
+</tbody>
+</table>
+
+<p>At 50&thinsp;% coverage, the kept subset has AF recall of 0.043 vs 0.707 under UQ-only &mdash; an absolute drop of 66.4 percentage points. Among the 559 true AF segments in the test set, na&iuml;ve SQI deferral retains only 54 at half coverage; the other 505 are deferred. AF recall only equalises with UQ-only near full coverage, by which point the deferral policy has no useful selectivity. Figure&thinsp;1 visualises the gap across the full coverage range and shows that both class-conditional fixes (AF-immune, LW-CCSD) preserve AF recall while still leveraging the SQI signal.</p>
+
+<figure class="keep-together">
+<img src="figures/naive_sqi_failure.png" alt="AF recall vs coverage by policy">
+<figcaption><strong>Figure 1.</strong> AF recall on the kept subset as coverage decreases, four policies on the CinC synth-rPPG test set. Na&iuml;ve SQI deferral collapses AF recall at low coverage; the class-conditional rules (AF-immune and LW-CCSD) preserve it.</figcaption>
+</figure>
+
+<p>The mechanism is structural rather than accidental, and we analyse it in Section&thinsp;5.5. For now we note that the aggregate AURC improvement is real but misleading: it comes from preserving a high-SNR NSR subset that the classifier already classifies well and from deferring a low-SNR AF subset that the classifier could classify correctly were it not deferred. A clinical-screen deployment optimising aggregate AURC would silently miss the majority of AF cases; the naive metric does not surface this failure.</p>
+
+<h2>5.3&nbsp;&nbsp;LW-CCSD: The Pareto Frontier</h2>
+<p>LW-CCSD addresses this by learning a per-predicted-class weight vector <strong>w</strong>* on the validation set subject to an AF-recall floor. We fix the constraint coverage at <em>c</em><sub>0</sub>&thinsp;=&thinsp;0.50 and sweep the AF-recall floor; results on the CinC test set are in Table&thinsp;3.</p>
+
+<table class="keep-together">
+<caption><strong>Table 3.</strong> LW-CCSD Pareto frontier on synth-rPPG CinC test set (deterministic classifier, snr_db, constraint coverage 0.50).</caption>
+<thead>
+<tr><th>Val AF floor</th><th><strong>w</strong>* (NSR/AF/Other)</th><th class="num">Test AURC</th><th class="num">&Delta; vs UQ</th><th class="num">AF cost</th></tr>
+</thead>
+<tbody>
+<tr><td>0.60</td><td>0.0&thinsp;/&thinsp;0.1&thinsp;/&thinsp;0.5</td><td class="num">0.2270</td><td class="num">+4.1&thinsp;%</td><td class="num">&minus;0.004</td></tr>
+<tr><td>0.58</td><td>0.0&thinsp;/&thinsp;0.4&thinsp;/&thinsp;0.6</td><td class="num">0.2082</td><td class="num">+12.1&thinsp;%</td><td class="num">&minus;0.045</td></tr>
+<tr><td class="best">0.55</td><td class="best">0.3&thinsp;/&thinsp;0.4&thinsp;/&thinsp;0.4</td><td class="num best">0.1998</td><td class="num best">+15.6&thinsp;%</td><td class="num best">&minus;0.081</td></tr>
+<tr><td>0.50</td><td>0.1&thinsp;/&thinsp;0.5&thinsp;/&thinsp;0.6</td><td class="num">0.2020</td><td class="num">+14.7&thinsp;%</td><td class="num">&minus;0.123</td></tr>
+<tr><td>0.45</td><td>0.2&thinsp;/&thinsp;0.5&thinsp;/&thinsp;0.5</td><td class="num">0.1984</td><td class="num">+16.2&thinsp;%</td><td class="num">&minus;0.166</td></tr>
+<tr><td>0.40</td><td>0.4&thinsp;/&thinsp;0.5&thinsp;/&thinsp;0.5</td><td class="num">0.1958</td><td class="num">+17.3&thinsp;%</td><td class="num">&minus;0.220</td></tr>
+<tr><td colspan="5" style="border-top: 0.5px solid #999; padding-top: 1mm;"></td></tr>
+<tr><td>UQ-only (baseline)</td><td>&mdash;</td><td class="num">0.2367</td><td class="num">&mdash;</td><td class="num">0.000</td></tr>
+<tr><td>Na&iuml;ve SQI (<em>w</em>&thinsp;=&thinsp;0.7)</td><td>shared</td><td class="num">0.1942</td><td class="num">+18.0&thinsp;%</td><td class="num bad">&minus;0.664</td></tr>
+</tbody>
+</table>
+
+<p>At the strictest floor we evaluated (0.60 on validation, conservative against val UQ-only AF recall of 0.602), the learned weight is essentially zero on the AF and Other classes and modest on NSR &mdash; the optimiser is barely able to add any SQI weighting while respecting the constraint. The resulting test AURC is 0.2270, a 4.1&thinsp;% improvement over UQ-only, with AF recall almost perfectly preserved (&Delta;&thinsp;=&thinsp;&minus;0.004). At the next-tighter floor of 0.58 the optimiser opens up the AF and Other weights and recovers a 12.1&thinsp;% AURC improvement at 4.5 percentage-point AF cost. The frontier continues monotonically: 15.6&thinsp;% AURC at 8.1&thinsp;pp AF cost (floor 0.55); 17.3&thinsp;% AURC at 22.0&thinsp;pp AF cost (floor 0.40); and finally na&iuml;ve SQI (18.0&thinsp;% AURC at 66.4&thinsp;pp AF cost) as the asymptote at zero safety.</p>
+<p>A clinical operating point would be chosen by the deployer based on acceptable AF-recall harm. The 0.55-floor configuration is the largest improvement that holds AF recall within 10 percentage points of UQ-only and is our recommended default. The frontier shape is informative: na&iuml;ve SQI&rsquo;s 18&thinsp;% aggregate gain is achievable only by surrendering essentially all AF recall, so the practical value of SQI augmentation is closer to 12&ndash;15&thinsp;%, not 18&thinsp;%. Figure&thinsp;2 plots the frontier in the (AF recall cost, test AURC) plane alongside the UQ-only and na&iuml;ve SQI reference points.</p>
+
+<figure class="keep-together">
+<img src="figures/pareto_frontier.png" alt="LW-CCSD Pareto frontier">
+<figcaption><strong>Figure 2.</strong> LW-CCSD Pareto frontier on synth-rPPG CinC. Each green circle is a learned operating point under a different val AF-recall floor (annotated). The blue square is the UQ-only baseline; the red cross is na&iuml;ve SQI deferral at <em>w</em>&thinsp;=&thinsp;0.70. The recommended 0.55-floor operating point is circled.</figcaption>
+</figure>
+
+<p>A small non-monotonicity (the floor-0.55 result has slightly better AURC than the floor-0.50 result, 0.1998 vs 0.2020) is a consequence of the discrete 11-point grid; the global Pareto curve is smooth, but the discrete grid samples it at slightly different points. A continuous optimiser (discussed in Section&thinsp;6) would resolve this.</p>
+
+<h2>5.4&nbsp;&nbsp;Cross-UQ Replication</h2>
+<p>We replicate the LW-CCSD evaluation on the same CinC checkpoint but with confidences drawn from MC Dropout (predictive entropy, <em>T</em>&thinsp;=&thinsp;30) and from the five-model deep ensemble. Table&thinsp;4 reports the strongest safe operating point (&Delta; AF recall &ge; &minus;0.05) per UQ source.</p>
+
+<table class="keep-together">
+<caption><strong>Table 4.</strong> LW-CCSD across UQ sources, CinC test set. The strongest operating point with AF-recall cost &le;&thinsp;&minus;0.05 per source.</caption>
+<thead>
+<tr><th>UQ source</th><th class="num">UQ-only AURC</th><th class="num">LW-CCSD AURC</th><th class="num">&Delta; rel</th><th class="num">&Delta; AF recall</th></tr>
+</thead>
+<tbody>
+<tr><td>Deterministic</td><td class="num">0.2367</td><td class="num best">0.2082</td><td class="num best">+12.1&thinsp;%</td><td class="num">&minus;0.045</td></tr>
+<tr><td>MC Dropout</td><td class="num">0.1980</td><td class="num">0.1899</td><td class="num">+4.1&thinsp;%</td><td class="num">&minus;0.029</td></tr>
+<tr><td>Ensembles (<em>M</em>&thinsp;=&thinsp;5)</td><td class="num">0.2155</td><td class="num">0.2086</td><td class="num">+3.2&thinsp;%</td><td class="num">&minus;0.023</td></tr>
+</tbody>
+</table>
+
+<p>The SQI-deferral gain scales inversely with the underlying UQ informativeness. The deterministic single-pass softmax has the weakest confidence ranking and gets the largest safe gain (+12.1&thinsp;% at &minus;0.045 AF cost). MC Dropout entropy is a stronger ranking and the gain is correspondingly smaller (+4.1&thinsp;%). Ensemble-averaged softmax is the strongest of the three and the LW-CCSD margin is just +3.2&thinsp;%.</p>
+<p>The practical consequence is striking. The deterministic-classifier LW-CCSD operating point at floor 0.55 achieves test AURC 0.1998. This is <em>below</em> the unaugmented ensemble UQ-only baseline of 0.2155. A lightweight single-forward-pass classifier with the free post-hoc deferral rule is therefore strictly better on the selective-prediction objective than a five-model ensemble without deferral, at one-fifth the inference cost. We treat this as evidence that LW-CCSD is not merely an add-on to ensembling &mdash; in many practical regimes it is a viable substitute.</p>
+<p>The MIT-BIH replication (supplementary; see <code>docs/baselines/lw_ccsd_v1/mitbih/</code>) returned the trivial solution <strong>w</strong>*&thinsp;=&thinsp;(0,&thinsp;0,&thinsp;0), i.e.&nbsp;LW-CCSD reduced to UQ-only with no test-side change. The MIT-BIH classifier is degenerate (only 4 AF training records, 90&ndash;100&thinsp;% AF accuracy on test, 0&thinsp;% NSR accuracy at low coverage); under such conditions the SQI signal has nothing orthogonal to add and the constrained optimiser correctly returns the no-op. This is the method&rsquo;s graceful-degradation property: when SQI cannot help, LW-CCSD does not hurt.</p>
+
+<h2>5.5&nbsp;&nbsp;Mechanism: Why Na&iuml;ve SQI Fails on AF</h2>
+<p>The per-class collapse in Table&thinsp;2 is a direct consequence of how spectral SNR responds to the rhythm structure that defines AF. SNR as we compute it is the ratio of cardiac-band power (0.7&ndash;3.0&thinsp;Hz) to out-of-band power. NSR concentrates this band power at a single fundamental frequency and its harmonics, producing a sharp spectral peak and high SNR. AF, by definition, has irregular beat intervals; in the frequency domain this disperses power across the cardiac band into a broad ridge with no dominant peak, producing a substantially lower SNR even when the underlying pulse waveform itself is clean and free of motion noise.</p>
+<p>Empirically on our CinC test set, the median cardiac-band SNR is 23.7&thinsp;dB for true NSR segments, 20.0&thinsp;dB for true Other segments, and 12.5&thinsp;dB for true AF segments &mdash; an 11.3&thinsp;dB shift between NSR and AF that is intrinsic to their rhythm structure rather than to recording quality. Figure&thinsp;3 shows the full per-class SNR distributions and confirms that the AF distribution sits cleanly to the left of the NSR distribution with substantial overlap that no model recalibration can resolve.</p>
+
+<figure class="keep-together">
+<img src="figures/snr_distribution.png" alt="Per-class SNR distributions on CinC">
+<figcaption><strong>Figure 3.</strong> Per-class cardiac-band SNR distributions on the CinC synth-rPPG test set. The 11.3&thinsp;dB median shift between NSR (23.7&thinsp;dB) and AF (12.5&thinsp;dB) is intrinsic to rhythm structure &mdash; it is the mechanism behind the AF-recall collapse of na&iuml;ve SQI deferral.</figcaption>
+</figure>
+
+<p>A deferral rule that ranks samples by SNR alone therefore systematically promotes NSR over AF and demotes AF over NSR, independently of the model&rsquo;s predictions. When this SNR ranking is mixed with the model&rsquo;s confidence ranking at high weight (<em>w</em>&thinsp;=&thinsp;0.70), the SNR shift dominates and AF predictions are pushed below the deferral threshold even when the model is confident on them.</p>
+<p>A second consequence is that the failure cannot be fixed by recalibrating the model. The model could in principle learn to flag AF predictions on low-SNR segments with lower confidence, partially absorbing the SNR signal into the confidence ranking. But it cannot resolve the inverse case &mdash; a confident AF prediction on a low-SNR window that is genuinely AF &mdash; because the SNR is low <em>because the rhythm is AF</em>. There is no rescaling of confidence that recovers AF from a deferral rule that penalises low SNR.</p>
+<p>This is what LW-CCSD discovers automatically. Across the Pareto frontier the learned weight on the AF class is consistently smaller than the weights on NSR and Other: at the recommended floor of 0.55, <strong>w</strong>*<sub>AF</sub>&thinsp;=&thinsp;0.4 vs <strong>w</strong>*<sub>NSR</sub>&thinsp;=&thinsp;0.3, <strong>w</strong>*<sub>Other</sub>&thinsp;=&thinsp;0.4; at the most safety-conservative floor of 0.60, <strong>w</strong>*<sub>AF</sub> drops to 0.1 while the others stay positive. The optimiser is performing a class-conditional credit assignment: the SNR feature is reliable for ranking NSR / Other predictions but unreliable for ranking AF predictions, and the learned weights reflect that.</p>
+
+<!-- ================= DISCUSSION ================= -->
+<h1><span class="section-num">6</span>Discussion</h1>
+
+<h2>6.1&nbsp;&nbsp;Why the Method Works</h2>
+<p>LW-CCSD succeeds because spectral SNR carries deferral-relevant information that model confidence does not, but only for some predicted classes. Predictions of NSR or Other rhythms on noisy windows are typically over-confident: the classifier learned features tied to rhythm regularity, which are corrupted by camera motion, lighting flicker, and partial face occlusion in ways the per-window confidence score cannot detect. SNR exposes this corruption directly. Predictions of AF, on the other hand, are correctly less confident on noisy windows (because the AF-defining irregularity raises uncertainty in the same direction as motion noise) but <em>also</em> less confident on clean windows (because regularity is the NSR signature). Weighting SNR on AF predictions therefore double-counts the irregularity penalty and rejects positives. The learned per-class weight resolves this: the optimiser discovers a small or zero weight on the AF class and larger weights on NSR / Other, precisely where SNR adds orthogonal information.</p>
+
+<h2>6.2&nbsp;&nbsp;Deployment Implications</h2>
+<p>LW-CCSD applied to a single-pass deterministic classifier achieves test AURC 0.1998 at AF-recall cost &minus;0.081 (operating point: val floor 0.55). An unaugmented five-model deep ensemble on the same data achieves test AURC 0.2155 &mdash; worse, at five times the inference compute. The lightweight model plus the free post-hoc deferral rule outperforms ensembling. For clinical-screen deployment where compute and latency budgets are tight, this suggests LW-CCSD is a viable substitute for ensembling rather than an add-on to it.</p>
+<p>The cross-UQ pattern also has a practical implication: when investing in stronger UQ (MC Dropout at <em>T</em>&thinsp;=&thinsp;30, ensembles at <em>M</em>&thinsp;=&thinsp;5), the marginal value of adding SNR-based deferral shrinks. A deployed system should therefore make the UQ-method choice and the SQI-deferral choice jointly &mdash; they are partial substitutes, not independent additions.</p>
+
+<h2>6.3&nbsp;&nbsp;Limitations</h2>
+<p>The main benchmark uses synthetic rPPG derived from ECG, not real face-video rPPG. The synthesis preserves rhythm structure (which the classifier ultimately relies on for AF detection) but abstracts away morphological details that real rPPG would also lack. We expect the qualitative trends to transfer to real face-video AF data, particularly the central failure mode of na&iuml;ve SQI deferral on AF, which depends only on the spectral concentration of cardiac-band energy and not on synthesis details. Quantitative magnitudes (the exact size of the +15.6&thinsp;% deterministic AURC gain, the exact slope of the Pareto frontier) may shift on real data. Replication on OBF [4] or MAHNOB-HCI is the natural next step pending data access.</p>
+<p>The LW-CCSD optimiser uses a discrete 11-point grid. Generalisation noise from grid discreteness manifests as small non-monotonicities in the test-side Pareto curve. A continuous gradient-free optimiser (Nelder&ndash;Mead, CMA-ES) on val AURC subject to constraint penalties would smooth this and is a natural refinement.</p>
+<p>The AF-recall floor used in the optimisation is an empirical val-set quantity. A conformal formulation, in which the floor is replaced by a finite-sample distribution-free coverage guarantee under exchangeability, would strengthen the theoretical claim. This is a focused next experiment, not a fundamental redesign &mdash; the LW-CCSD optimiser already operates on rank-normalised scores, which are exchangeability-friendly.</p>
+
+<h2>6.4&nbsp;&nbsp;Generality of the Pattern</h2>
+<p>The core failure mode &mdash; aggregate-metric improvement that comes from systematically rejecting the minority class because the class-defining signal collides with the auxiliary deferral feature &mdash; is not specific to rPPG-AF screening. It appears whenever the auxiliary feature is correlated with class identity in ways the aggregate metric does not capture. The fix &mdash; learn per-class weights subject to per-class recall constraints &mdash; is correspondingly general. LW-CCSD as formulated here applies directly to any classification task with a continuous auxiliary quality feature and a per-class safety floor, and is a candidate methodology for the broader literature on selective prediction in clinical AI.</p>
+
+<!-- ================= CONCLUSION ================= -->
+<h1><span class="section-num">7</span>Conclusion</h1>
+<p>We introduced LW-CCSD, a post-hoc class-conditional deferral procedure that learns per-predicted-class signal-quality weights subject to a configurable safety floor. On a 45,064-segment synthetic-rPPG benchmark, LW-CCSD recovers most of the aggregate AURC gain of na&iuml;ve signal-quality deferral while preserving AF recall, and applied to a lightweight single-pass classifier it outperforms an unaugmented five-model deep ensemble. The method is model-agnostic, requires no retraining, and generalises across three uncertainty quantification methods. We release the full pipeline and CinC-derived synth-rPPG substrate under MIT licence; replication on real face-video AF data is a natural next step pending OBF / MAHNOB-HCI access.</p>
+
+<!-- ================= ACK ================= -->
+<h1>Acknowledgments</h1>
+<p>This work uses public datasets &mdash; PhysioNet/CinC 2017 AF Challenge and the MIT-BIH Arrhythmia Database &mdash; whose maintainers are gratefully acknowledged.</p>
+
+<h1>Data and Code Availability</h1>
+<p>Open-source pipeline including all scripts, configurations, trained checkpoints, and per-method evaluation artefacts is available at <a href="https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia">github.com/ShahnawazKakarh/rppg-selective-arrhythmia</a> under MIT licence. The CinC-derived synthetic-rPPG cache is reproducible from the released code in approximately 20 minutes of CPU time on a recent laptop.</p>
+
+<h1>Conflict of Interest Statement</h1>
+<p>The author declares no competing interests.</p>
+
+<!-- ================= REFERENCES ================= -->
+<h1>References</h1>
+<ol class="refs">
+<li>G. de Haan and V. Jeanne, &ldquo;Robust pulse rate from chrominance-based rPPG,&rdquo; <em>IEEE Transactions on Biomedical Engineering</em>, vol. 60, no. 10, pp. 2878&ndash;2886, 2013.</li>
+<li>W. Wang, A. C. den Brinker, S. Stuijk and G. de Haan, &ldquo;Algorithmic principles of remote PPG,&rdquo; <em>IEEE Transactions on Biomedical Engineering</em>, vol. 64, no. 7, pp. 1479&ndash;1491, 2017.</li>
+<li>Z. Yu, W. Peng, X. Li, X. Hong and G. Zhao, &ldquo;Remote heart rate measurement from highly compressed facial videos: an end-to-end deep learning solution with video enhancement,&rdquo; <em>Proc.&thinsp;IEEE/CVF ICCV</em>, 2019.</li>
+<li>X. Li, I. Alikhani, J. Shi, T. Sepp&auml;nen, J. Junttila, K. Majamaa-Voltti, M. Tulppo and G. Zhao, &ldquo;The OBF database: a large face video database for remote physiological signal measurement and atrial fibrillation detection,&rdquo; <em>Proc.&thinsp;IEEE FG</em>, 2018.</li>
+<li>B. P. Yan, W. H. S. Lai, C. K. Y. Chan <em>et&thinsp;al.</em>, &ldquo;Detection of atrial fibrillation from facial videos using consumer-grade cameras,&rdquo; <em>Scientific Reports</em>, vol. 12, art.&thinsp;13176, 2022.</li>
+<li>Y. Gal and Z. Ghahramani, &ldquo;Dropout as a Bayesian approximation: representing model uncertainty in deep learning,&rdquo; <em>Proc.&thinsp;ICML</em>, 2016.</li>
+<li>B. Lakshminarayanan, A. Pritzel and C. Blundell, &ldquo;Simple and scalable predictive uncertainty estimation using deep ensembles,&rdquo; <em>NeurIPS</em>, 2017.</li>
+<li>M. Sensoy, L. Kaplan and M. Kandemir, &ldquo;Evidential deep learning to quantify classification uncertainty,&rdquo; <em>NeurIPS</em>, 2018.</li>
+<li>J. Z. Liu, Z. Lin, S. Padhy, D. Tran, T. Bedrax-Weiss and B. Lakshminarayanan, &ldquo;Simple and principled uncertainty estimation with deterministic deep learning via distance awareness,&rdquo; <em>NeurIPS</em>, 2020.</li>
+<li>A. N. Angelopoulos and S. Bates, &ldquo;A gentle introduction to conformal prediction and distribution-free uncertainty quantification,&rdquo; <em>arXiv:2107.07511</em>, 2021.</li>
+<li>Y. Geifman and R. El-Yaniv, &ldquo;Selective classification for deep neural networks,&rdquo; <em>NeurIPS</em>, 2017.</li>
+<li>M. P. Naeini, G. F. Cooper and M. Hauskrecht, &ldquo;Obtaining well-calibrated probabilities using Bayesian binning,&rdquo; <em>AAAI</em>, 2015.</li>
+<li>G. D. Clifford, C. Liu, B. Moody, L. H. Lehman, I. Silva, Q. Li, A. E. W. Johnson and R. G. Mark, &ldquo;AF classification from a short single lead ECG recording: the PhysioNet/Computing in Cardiology Challenge 2017,&rdquo; <em>Computing in Cardiology (CinC)</em>, 2017.</li>
+<li>G. B. Moody and R. G. Mark, &ldquo;The impact of the MIT-BIH arrhythmia database,&rdquo; <em>IEEE Engineering in Medicine and Biology Magazine</em>, vol. 20, no. 3, pp. 45&ndash;50, 2001.</li>
+</ol>
+
+</body>
+</html>
