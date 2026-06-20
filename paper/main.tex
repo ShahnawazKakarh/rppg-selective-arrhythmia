@@ -217,7 +217,14 @@ Coverage & UQ-only AF recall & Na\"{i}ve SQI AF recall \\
 \end{tabular}
 \end{table}
 
-At $50\,\%$ coverage, the kept subset has AF recall of $0.043$ vs $0.707$ under UQ-only --- an absolute drop of $66.4$ percentage points. Among the $559$ true AF segments in the test set, na\"{i}ve SQI deferral retains only $54$ at half coverage; the other $505$ are deferred. At $70\,\%$ coverage AF recall recovers somewhat to $0.365$ but remains far below UQ-only's $0.732$. AF recall only equalises with UQ-only near full coverage, by which point the deferral policy has no useful selectivity.
+At $50\,\%$ coverage, the kept subset has AF recall of $0.043$ vs $0.707$ under UQ-only --- an absolute drop of $66.4$ percentage points. Among the $559$ true AF segments in the test set, na\"{i}ve SQI deferral retains only $54$ at half coverage; the other $505$ are deferred. At $70\,\%$ coverage AF recall recovers somewhat to $0.365$ but remains far below UQ-only's $0.732$. AF recall only equalises with UQ-only near full coverage, by which point the deferral policy has no useful selectivity. Figure~\ref{fig:naive_sqi_failure} visualises the gap across the full coverage range and shows that both class-conditional fixes (AF-immune, LW-CCSD) preserve AF recall while still leveraging the SQI signal.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/naive_sqi_failure.pdf}
+\caption{AF recall on the kept subset as coverage decreases, four policies on the CinC synth-rPPG test set. Na\"{i}ve SQI deferral collapses AF recall at low coverage; the class-conditional rules (AF-immune and LW-CCSD) preserve it.}
+\label{fig:naive_sqi_failure}
+\end{figure}
 
 The mechanism is structural rather than accidental, and we analyse it in Section~\ref{sec:mechanism}. For now we note that the aggregate AURC improvement is real but misleading: it comes from preserving a high-SNR NSR subset that the classifier already classifies well and from deferring a low-SNR AF subset that the classifier could classify correctly were it not deferred. A clinical-screen deployment optimising aggregate AURC would silently miss the majority of AF cases; the naive metric does not surface this failure.
 
@@ -247,7 +254,14 @@ Na\"{i}ve SQI ($w{=}0.7$) & shared & 0.1942 & +18.0\,\% & $-$0.664 \\
 
 At the strictest floor we evaluated ($0.60$ on validation, conservative against val UQ-only AF recall of $0.602$), the learned weight is essentially zero on the AF and Other classes and modest on NSR --- the optimiser is barely able to add any SQI weighting while respecting the constraint. The resulting test AURC is $0.2270$, a $4.1\,\%$ improvement over UQ-only, with AF recall almost perfectly preserved (delta $-0.004$). At the next-tighter floor of $0.58$ the optimiser opens up the AF and Other weights and recovers a $12.1\,\%$ AURC improvement at $4.5$ percentage-point AF cost. The frontier continues monotonically: $15.6\,\%$ AURC at $8.1$\,pp AF cost (floor $0.55$); $17.3\,\%$ AURC at $22.0$\,pp AF cost (floor $0.40$); and finally na\"{i}ve SQI ($18.0\,\%$ AURC at $66.4$\,pp AF cost) as the asymptote at zero safety.
 
-A clinical operating point would be chosen by the deployer based on acceptable AF-recall harm. The $0.55$-floor configuration is the largest improvement that holds AF recall within $10$ percentage points of UQ-only and is our recommended default. The frontier shape is informative: na\"{i}ve SQI's $18\,\%$ aggregate gain is achievable only by surrendering essentially all AF recall, so the practical value of SQI augmentation is closer to $12$--$15\,\%$, not $18\,\%$.
+A clinical operating point would be chosen by the deployer based on acceptable AF-recall harm. The $0.55$-floor configuration is the largest improvement that holds AF recall within $10$ percentage points of UQ-only and is our recommended default. The frontier shape is informative: na\"{i}ve SQI's $18\,\%$ aggregate gain is achievable only by surrendering essentially all AF recall, so the practical value of SQI augmentation is closer to $12$--$15\,\%$, not $18\,\%$. Figure~\ref{fig:pareto_frontier} plots the frontier in the (AF recall cost, test AURC) plane alongside the UQ-only and na\"{i}ve SQI reference points.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/pareto_frontier.pdf}
+\caption{LW-CCSD Pareto frontier on synth-rPPG CinC. Each green circle is a learned operating point under a different val AF-recall floor (annotated). The blue square is the UQ-only baseline; the red cross is na\"{i}ve SQI deferral at $w{=}0.70$. The recommended $0.55$-floor operating point is circled.}
+\label{fig:pareto_frontier}
+\end{figure}
 
 A small non-monotonicity (the floor-$0.55$ result has slightly better AURC than the floor-$0.50$ result, $0.1998$ vs $0.2020$) is a consequence of the discrete $11$-point grid; the global Pareto curve is smooth, but the discrete grid samples it at slightly different points. A continuous optimiser (discussed in Section~VI) would resolve this.
 
@@ -279,7 +293,14 @@ The MIT-BIH replication (supplementary; see \texttt{docs/baselines/lw\_ccsd\_v1/
 \label{sec:mechanism}
 The per-class collapse in Table~\ref{tab:naive_sqi} is a direct consequence of how spectral SNR responds to the rhythm structure that defines AF. SNR as we compute it is the ratio of cardiac-band power ($0.7$--$3.0$\,Hz) to out-of-band power. NSR concentrates this band power at a single fundamental frequency and its harmonics, producing a sharp spectral peak and high SNR. AF, by definition, has irregular beat intervals; in the frequency domain this disperses power across the cardiac band into a broad ridge with no dominant peak, producing a substantially lower SNR even when the underlying pulse waveform itself is clean and free of motion noise.
 
-Empirically on our CinC test set, the median SNR (dB) is $11.4$ for true NSR segments, $7.2$ for true AF segments, and $9.1$ for true Other --- a $4.2$\,dB shift between the two clinically relevant classes that is intrinsic to their rhythm structure rather than to recording quality. A deferral rule that ranks samples by SNR alone therefore systematically promotes NSR over AF and demotes AF over NSR, independently of the model's predictions. When this SNR ranking is mixed with the model's confidence ranking at high weight ($w = 0.70$), the SNR shift dominates and AF predictions are pushed below the deferral threshold even when the model is confident on them.
+Empirically on our CinC test set, the median cardiac-band SNR is $23.7$\,dB for true NSR segments, $20.0$\,dB for true Other segments, and $12.5$\,dB for true AF segments --- an $11.3$\,dB shift between NSR and AF that is intrinsic to their rhythm structure rather than to recording quality. Figure~\ref{fig:snr_distribution} shows the full per-class SNR distributions and confirms that the AF distribution sits cleanly to the left of the NSR distribution with substantial overlap that no model recalibration can resolve. A deferral rule that ranks samples by SNR alone therefore systematically promotes NSR over AF and demotes AF over NSR, independently of the model's predictions. When this SNR ranking is mixed with the model's confidence ranking at high weight ($w = 0.70$), the SNR shift dominates and AF predictions are pushed below the deferral threshold even when the model is confident on them.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/snr_distribution.pdf}
+\caption{Per-class cardiac-band SNR distributions on the CinC synth-rPPG test set. The $11.3$\,dB median shift between NSR ($23.7$\,dB) and AF ($12.5$\,dB) is intrinsic to rhythm structure --- it is the mechanism behind the AF-recall collapse of na\"{i}ve SQI deferral.}
+\label{fig:snr_distribution}
+\end{figure}
 
 A second consequence is that the failure cannot be fixed by recalibrating the model. The model could in principle learn to flag AF predictions on low-SNR segments with lower confidence, partially absorbing the SNR signal into the confidence ranking. But it cannot resolve the inverse case --- a confident AF prediction on a low-SNR window that is genuinely AF --- because the SNR is low \emph{because the rhythm is AF}. There is no rescaling of confidence that recovers AF from a deferral rule that penalises low SNR.
 
