@@ -227,7 +227,25 @@ CinC 2017 AF Challenge (8,244 records, 738 AF) synthesized through the same MIT-
 
 The ordering of the three UQ methods is **not consistent across data sources** — ensembles dominated on MIT-BIH, MC Dropout dominates here. That's a publishable methodological finding in itself: the "best UQ method" question is dataset-dependent.
 
-### Signal-quality-aware deferral v1 — the headline methodological result
+### LW-CCSD v1 — Learned Class-Conditional SQI Deferral (headline contribution)
+
+A principled, post-hoc, model-agnostic deferral policy that learns per-predicted-class quality weights w = (w_NSR, w_AF, w_Other) by constrained grid search on validation data, subject to an AF-recall floor. Converts the unsafe naive-SQI rule and the conservative hand-tuned `af_immune` rule into a **tunable Pareto frontier** between aggregate selective performance and AF-recall safety.
+
+Frontier on synth-rPPG CinC test set:
+
+| Policy | Test AURC | Δ vs UQ-only | Test AF recall @0.5 | Δ AF |
+|---|---:|---:|---:|---:|
+| UQ-only (no SQI) | 0.2367 | — | 0.707 | 0.000 |
+| naive SQI (single shared w=0.70) | 0.1942 | +18.0 % | 0.043 | −0.664 |
+| `af_immune` (hand-tuned binary, w=0.70) | 0.2300 | +2.8 % | 0.689 | −0.018 |
+| **LW-CCSD floor 0.60** (w*=0.0/0.1/0.5) | 0.2270 | **+4.1 %** | **0.703** | **−0.004** |
+| **LW-CCSD floor 0.58** (w*=0.0/0.4/0.6) | 0.2082 | **+12.1 %** | 0.662 | −0.045 |
+| **LW-CCSD floor 0.55** (w*=0.3/0.4/0.4) | 0.1998 | **+15.6 %** | 0.626 | −0.081 |
+| LW-CCSD floor 0.40 (w*=0.4/0.5/0.5) | 0.1958 | +17.3 % | 0.487 | −0.220 |
+
+Full derivation and per-method replication in [`docs/baselines/lw_ccsd_v1/findings.md`](docs/baselines/lw_ccsd_v1/findings.md). The paper's contribution: **"LW-CCSD makes the safety/accuracy trade-off in selective rPPG-AF screening explicit and tunable; the clinician picks the operating point."**
+
+### Signal-quality-aware deferral v1 — the negative finding that motivated LW-CCSD
 
 Combining model confidence with **spectral SNR** beats UQ-only deferral by 18 % on AURC on the synth-rPPG CinC substrate, with the optimum at w ≈ 0.7 (rank-normalized linear combination). Template SQI barely helps. Same single-model checkpoint, no retraining — the gain is purely from a better ranking score. Full breakdown in [`docs/baselines/sqi_deferral_v1/findings.md`](docs/baselines/sqi_deferral_v1/findings.md).
 
