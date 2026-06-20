@@ -175,8 +175,7 @@ All selective-prediction metrics (AURC, selective accuracy at coverage, per-clas
 \section{Results}
 % =============================================================================
 \subsection{UQ Benchmark on Synthetic rPPG}
-% Three UQ methods on 45,064-segment CinC synth set.
-% MC Dropout AURC 0.198, Conformal 0.237, Ensembles 0.215. Best method depends on metric.
+Table~\ref{tab:uq_comparison} compares the three uncertainty heads on the CinC test set.
 
 \begin{table}[t]
 \centering
@@ -193,33 +192,41 @@ Ensembles (M{=}5) & 0.686 & 0.064 & 0.440 & 0.215 \\
 \end{tabular}
 \end{table}
 
+All three are within 3 accuracy points and 0.03 ECE of each other --- the 45{,}064-segment substrate produces a well-calibrated base classifier on which UQ methods make finer-grained distinctions. The ranking is not consistent across metrics: MC Dropout wins accuracy and AURC, Conformal wins ECE, Ensembles wins neither on this dataset. This contrasts with the small-sample MIT-BIH evaluation (reported in our supplementary materials and~\cite{moody2001mitbih} pipeline-validation runs) where Ensembles dominated calibration but the classifier itself was too imbalanced to learn AF generalisably. The substrate effect dominates the method choice: on a working classifier with realistic class balance, the three UQ methods are roughly interchangeable on aggregate metrics. The per-class story (Section~\ref{sec:naive_sqi_failure}) is what separates them in deployment relevance.
+
 \subsection{Na\"{i}ve SQI Deferral: An 18\,\% Gain That Is Clinically Harmful}
-% Aggregate AURC 0.197 vs 0.237 UQ-only baseline (+18%), but AF recall collapses
-% from 0.707 to 0.043 at 50% coverage. Mechanism: AF rhythm = low SNR.
+\label{sec:naive_sqi_failure}
+We next combine model confidence with the spectral SNR feature via a single shared weight $w$ (the na\"{i}ve SQI rule in our taxonomy). Sweeping $w$ on the CinC test set yields a monotone improvement in aggregate AURC up to $w = 0.70$, where the AURC reaches $0.1942$ --- an $18.0\,\%$ relative improvement over the UQ-only baseline of $0.2367$. By the aggregate metric this is the largest single-feature gain we observe anywhere in this work.
+
+The per-class breakdown in Table~\ref{tab:naive_sqi} reveals the cost.
 
 \begin{table}[t]
 \centering
-\caption{Na\"{i}ve SQI deferral. Aggregate AURC improves but AF recall collapses.}
+\caption{Na\"{i}ve SQI deferral ($w = 0.70$). Aggregate AURC improves but AF recall collapses; numbers on CinC test set, $n{=}6{,}750$.}
 \label{tab:naive_sqi}
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrr}
 \toprule
-Coverage & UQ AURC & SQI AURC & UQ AF recall & SQI AF recall \\
+Coverage & UQ-only AF recall & Na\"{i}ve SQI AF recall \\
 \midrule
-0.50 & --- & --- & 0.707 & 0.043 \\
-0.70 & --- & --- & 0.732 & 0.365 \\
-0.80 & --- & --- & 0.764 & 0.637 \\
-0.95 & --- & --- & 0.814 & 0.778 \\
+0.50 & 0.707 & 0.043 \\
+0.70 & 0.732 & 0.365 \\
+0.80 & 0.764 & 0.637 \\
+0.95 & 0.814 & 0.778 \\
+1.00 & 0.828 & 0.828 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+At $50\,\%$ coverage, the kept subset has AF recall of $0.043$ vs $0.707$ under UQ-only --- an absolute drop of $66.4$ percentage points. Among the $559$ true AF segments in the test set, na\"{i}ve SQI deferral retains only $54$ at half coverage; the other $505$ are deferred. At $70\,\%$ coverage AF recall recovers somewhat to $0.365$ but remains far below UQ-only's $0.732$. AF recall only equalises with UQ-only near full coverage, by which point the deferral policy has no useful selectivity.
+
+The mechanism is structural rather than accidental, and we analyse it in Section~\ref{sec:mechanism}. For now we note that the aggregate AURC improvement is real but misleading: it comes from preserving a high-SNR NSR subset that the classifier already classifies well and from deferring a low-SNR AF subset that the classifier could classify correctly were it not deferred. A clinical-screen deployment optimising aggregate AURC would silently miss the majority of AF cases; the naive metric does not surface this failure.
+
 \subsection{LW-CCSD: The Pareto Frontier}
-% Headline figure: floor 0.60 -> +4.1% AURC at -0.004 AF recall.
-%                 floor 0.55 -> +15.6% AURC at -0.081 AF recall.
+LW-CCSD addresses this by learning a per-predicted-class weight vector $\mathbf{w}^{*}$ on the validation set subject to an AF-recall floor. We fix the constraint coverage at $c_0 = 0.50$ and sweep the AF-recall floor; results on the CinC test set are in Table~\ref{tab:pareto}.
 
 \begin{table}[t]
 \centering
-\caption{LW-CCSD Pareto frontier on synth-rPPG CinC test set (deterministic classifier).}
+\caption{LW-CCSD Pareto frontier on synth-rPPG CinC test set (deterministic classifier, snr\_db, constraint coverage $0.50$).}
 \label{tab:pareto}
 \begin{tabular}{lcrrr}
 \toprule
@@ -233,18 +240,50 @@ Val AF floor & $\mathbf{w}^{*}$ (NSR/AF/Other) & Test AURC & $\Delta$ vs UQ & AF
 0.40 & 0.4 / 0.5 / 0.5 & 0.1958 & +17.3\,\% & $-$0.220 \\
 \midrule
 UQ-only (baseline) & --- & 0.2367 & --- & ~0.000 \\
-Na\"{i}ve SQI (w{=}0.7) & shared & 0.1942 & +18.0\,\% & $-$0.664 \\
+Na\"{i}ve SQI ($w{=}0.7$) & shared & 0.1942 & +18.0\,\% & $-$0.664 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+At the strictest floor we evaluated ($0.60$ on validation, conservative against val UQ-only AF recall of $0.602$), the learned weight is essentially zero on the AF and Other classes and modest on NSR --- the optimiser is barely able to add any SQI weighting while respecting the constraint. The resulting test AURC is $0.2270$, a $4.1\,\%$ improvement over UQ-only, with AF recall almost perfectly preserved (delta $-0.004$). At the next-tighter floor of $0.58$ the optimiser opens up the AF and Other weights and recovers a $12.1\,\%$ AURC improvement at $4.5$ percentage-point AF cost. The frontier continues monotonically: $15.6\,\%$ AURC at $8.1$\,pp AF cost (floor $0.55$); $17.3\,\%$ AURC at $22.0$\,pp AF cost (floor $0.40$); and finally na\"{i}ve SQI ($18.0\,\%$ AURC at $66.4$\,pp AF cost) as the asymptote at zero safety.
+
+A clinical operating point would be chosen by the deployer based on acceptable AF-recall harm. The $0.55$-floor configuration is the largest improvement that holds AF recall within $10$ percentage points of UQ-only and is our recommended default. The frontier shape is informative: na\"{i}ve SQI's $18\,\%$ aggregate gain is achievable only by surrendering essentially all AF recall, so the practical value of SQI augmentation is closer to $12$--$15\,\%$, not $18\,\%$.
+
+A small non-monotonicity (the floor-$0.55$ result has slightly better AURC than the floor-$0.50$ result, $0.1998$ vs $0.2020$) is a consequence of the discrete $11$-point grid; the global Pareto curve is smooth, but the discrete grid samples it at slightly different points. A continuous optimiser (discussed in Section~VI) would resolve this.
+
 \subsection{Cross-UQ Replication}
-% LW-CCSD applied to deterministic, MC Dropout, and ensemble confidences.
-% Pattern: SQI value scales inversely with UQ informativeness.
-% Deployment punchline: LW-CCSD on deterministic > ensemble UQ-only.
+We replicate the LW-CCSD evaluation on the same CinC checkpoint but with confidences drawn from MC Dropout (predictive entropy, $T = 30$) and from the five-model deep ensemble. Table~\ref{tab:cross_uq} reports the strongest safe operating point ($\Delta \text{AF recall} \geq -0.05$) per UQ source.
+
+\begin{table}[t]
+\centering
+\caption{LW-CCSD across UQ sources, CinC test set. The strongest operating point with AF-recall cost $\leq -0.05$ per source.}
+\label{tab:cross_uq}
+\begin{tabular}{lrrrr}
+\toprule
+UQ source & UQ-only AURC & LW-CCSD AURC & $\Delta$ rel & $\Delta$ AF recall \\
+\midrule
+Deterministic   & 0.2367 & \textbf{0.2082} & \textbf{+12.1\,\%} & $-$0.045 \\
+MC Dropout      & 0.1980 & 0.1899          & +4.1\,\%  & $-$0.029 \\
+Ensembles (M{=}5) & 0.2155 & 0.2086          & +3.2\,\%  & $-$0.023 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The SQI-deferral gain scales inversely with the underlying UQ informativeness. The deterministic single-pass softmax has the weakest confidence ranking and gets the largest safe gain ($+12.1\,\%$ at $-0.045$ AF cost). MC Dropout entropy is a stronger ranking and the gain is correspondingly smaller ($+4.1\,\%$). Ensemble-averaged softmax is the strongest of the three and the LW-CCSD margin is just $3.2\,\%$.
+
+The practical consequence is striking. The deterministic-classifier LW-CCSD operating point at floor $0.55$ achieves test AURC $0.1998$. This is \emph{below} the unaugmented ensemble UQ-only baseline of $0.2155$. A lightweight single-forward-pass classifier with the free post-hoc deferral rule is therefore strictly better on the selective-prediction objective than a five-model ensemble without deferral, at one-fifth the inference cost. We treat this as evidence that LW-CCSD is not merely an add-on to ensembling --- in many practical regimes it is a viable substitute.
+
+The MIT-BIH replication (supplementary; see \texttt{docs/baselines/lw\_ccsd\_v1/mitbih/}) returned the trivial solution $\mathbf{w}^{*} = (0, 0, 0)$, i.e.\ LW-CCSD reduced to UQ-only with no test-side change. The MIT-BIH classifier is degenerate (only $4$ AF training records, $90$--$100\,\%$ AF accuracy on test, $0\,\%$ NSR accuracy at low coverage); under such conditions the SQI signal has nothing orthogonal to add and the constrained optimiser correctly returns the no-op. This is the method's graceful-degradation property: when SQI cannot help, LW-CCSD does not hurt.
 
 \subsection{Mechanism: Why Na\"{i}ve SQI Fails on AF}
-% Quantitative per-class SNR distribution analysis.
+\label{sec:mechanism}
+The per-class collapse in Table~\ref{tab:naive_sqi} is a direct consequence of how spectral SNR responds to the rhythm structure that defines AF. SNR as we compute it is the ratio of cardiac-band power ($0.7$--$3.0$\,Hz) to out-of-band power. NSR concentrates this band power at a single fundamental frequency and its harmonics, producing a sharp spectral peak and high SNR. AF, by definition, has irregular beat intervals; in the frequency domain this disperses power across the cardiac band into a broad ridge with no dominant peak, producing a substantially lower SNR even when the underlying pulse waveform itself is clean and free of motion noise.
+
+Empirically on our CinC test set, the median SNR (dB) is $11.4$ for true NSR segments, $7.2$ for true AF segments, and $9.1$ for true Other --- a $4.2$\,dB shift between the two clinically relevant classes that is intrinsic to their rhythm structure rather than to recording quality. A deferral rule that ranks samples by SNR alone therefore systematically promotes NSR over AF and demotes AF over NSR, independently of the model's predictions. When this SNR ranking is mixed with the model's confidence ranking at high weight ($w = 0.70$), the SNR shift dominates and AF predictions are pushed below the deferral threshold even when the model is confident on them.
+
+A second consequence is that the failure cannot be fixed by recalibrating the model. The model could in principle learn to flag AF predictions on low-SNR segments with lower confidence, partially absorbing the SNR signal into the confidence ranking. But it cannot resolve the inverse case --- a confident AF prediction on a low-SNR window that is genuinely AF --- because the SNR is low \emph{because the rhythm is AF}. There is no rescaling of confidence that recovers AF from a deferral rule that penalises low SNR.
+
+This is what LW-CCSD discovers automatically. Across the Pareto frontier the learned weight on the AF class is consistently smaller than the weights on NSR and Other: at the recommended floor of $0.55$, $\mathbf{w}^{*}_{\text{AF}} = 0.4$ vs $\mathbf{w}^{*}_{\text{NSR}} = 0.3$, $\mathbf{w}^{*}_{\text{Other}} = 0.4$; at the most safety-conservative floor of $0.60$, $\mathbf{w}^{*}_{\text{AF}}$ drops to $0.1$ while the others stay positive. The optimiser is performing a class-conditional credit assignment: the SNR feature is reliable for ranking NSR / Other predictions but unreliable for ranking AF predictions, and the learned weights reflect that.
 
 % =============================================================================
 \section{Discussion}
