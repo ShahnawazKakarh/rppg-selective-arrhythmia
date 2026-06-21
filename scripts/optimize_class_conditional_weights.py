@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from scipy.stats import beta as _beta_dist
 
 from rppg_sa.data.mitbih import CLASS_TO_INDEX
 from rppg_sa.extractors.signal_quality import summarize_quality
@@ -169,6 +170,21 @@ def per_class_recall_at_coverage(
     coverage: float, num_classes: int,
 ) -> np.ndarray:
     """recall[c] = (# correctly predicted class c kept) / (# class c in total)."""
+    rec, _, _ = per_class_recall_with_counts(
+        score, labels, preds, coverage, num_classes
+    )
+    return rec
+
+
+def per_class_recall_with_counts(
+    score: np.ndarray, labels: np.ndarray, preds: np.ndarray,
+    coverage: float, num_classes: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Same as per_class_recall_at_coverage but also returns (n_correct_kept, n_total) per class.
+
+    Counts are needed for the Clopper-Pearson lower bound used by the
+    conformal LW-CCSD variant.
+    """
     n = len(score)
     k = max(int(round(coverage * n)), 1)
     if k >= n:
@@ -179,12 +195,28 @@ def per_class_recall_at_coverage(
     kept_mask[kept] = True
 
     recall = np.zeros(num_classes, dtype=np.float64)
+    n_correct_arr = np.zeros(num_classes, dtype=np.int64)
+    n_total_arr = np.zeros(num_classes, dtype=np.int64)
     for c in range(num_classes):
         m_class = labels == c
-        n_total = max(int(m_class.sum()), 1)
+        n_total = int(m_class.sum())
         n_correct_kept = int(((preds == labels) & m_class & kept_mask).sum())
-        recall[c] = n_correct_kept / n_total
-    return recall
+        n_total_arr[c] = n_total
+        n_correct_arr[c] = n_correct_kept
+        recall[c] = n_correct_kept / max(n_total, 1)
+    return recall, n_correct_arr, n_total_arr
+
+
+def clopper_pearson_lower(n_correct: int, n_total: int, alpha: float) -> float:
+    """One-sided Clopper-Pearson lower bound on a binomial proportion.
+
+    Returns LCB such that P(true p >= LCB) >= 1 - alpha (under exchangeability).
+    """
+    if n_total == 0:
+        return 0.0
+    if n_correct == 0:
+        return 0.0
+    return float(_beta_dist.ppf(alpha, n_correct, n_total - n_correct + 1))
 
 
 def aurc(score: np.ndarray, correct: np.ndarray) -> float:
@@ -199,11 +231,17 @@ def optimize_weights(
     labels_val: np.ndarray, num_classes: int,
     grid: list[float], constraint_coverage: float,
     recall_floors: np.ndarray,
+    conformal_alpha: float | None = None,
 ) -> dict[str, Any]:
     """Constrained grid search over per-class quality weights.
 
     Among all w in grid^num_classes satisfying val per-class recall >= floor
     at constraint_coverage, return the one that minimizes val AURC.
+
+    If conformal_alpha is given (e.g. 0.10), the floor is enforced on the
+    Clopper-Pearson one-sided lower confidence bound of val recall rather
+    than the point estimate, yielding P(true recall >= floor) >= 1 - alpha
+    under exchangeability.
     """
     correct_val = (preds_val == labels_val).astype(np.float64)
     grid_arr = np.array(grid, dtype=np.float64)
@@ -214,18 +252,37 @@ def optimize_weights(
         w = np.array(combo, dtype=np.float64)
         score = class_conditional_score(conf_val, sq_val, preds_val, w)
         a = aurc(score, correct_val)
-        rec = per_class_recall_at_coverage(
+        rec, n_correct, n_total = per_class_recall_with_counts(
             score, labels_val, preds_val, constraint_coverage, num_classes
         )
-        feasible = bool(np.all(rec >= recall_floors))
+        if conformal_alpha is not None:
+            lcb = np.array([
+                clopper_pearson_lower(int(n_correct[c]), int(n_total[c]), conformal_alpha)
+                for c in range(num_classes)
+            ])
+            feasible = bool(np.all(lcb >= recall_floors))
+            row_recall_field = lcb.tolist()
+        else:
+            feasible = bool(np.all(rec >= recall_floors))
+            row_recall_field = rec.tolist()
         rows.append({
             "w": w.tolist(),
             "val_aurc": a,
             "val_recall_per_class": rec.tolist(),
+            "val_recall_lcb_per_class": (
+                row_recall_field if conformal_alpha is not None else None
+            ),
             "feasible": feasible,
         })
         if feasible and (best is None or a < best["val_aurc"]):
-            best = {"w": w.tolist(), "val_aurc": a, "val_recall_per_class": rec.tolist()}
+            best = {
+                "w": w.tolist(),
+                "val_aurc": a,
+                "val_recall_per_class": rec.tolist(),
+                "val_recall_lcb_per_class": (
+                    row_recall_field if conformal_alpha is not None else None
+                ),
+            }
     return {"all_candidates": rows, "best": best}
 
 
@@ -248,6 +305,10 @@ def main() -> None:
     p.add_argument("--grid", type=float, nargs="+", default=DEFAULT_GRID)
     p.add_argument("--coverages", type=float, nargs="+", default=DEFAULT_COVERAGES)
     p.add_argument("--tag", type=str, default="")
+    p.add_argument("--conformal-alpha", type=float, default=None,
+                   help="If set (e.g. 0.10), enforce per-class recall floor on the "
+                        "Clopper-Pearson one-sided lower confidence bound of val recall, "
+                        "yielding P(true recall >= floor) >= 1 - alpha under exchangeability.")
     args = p.parse_args()
 
     cfg = load_config(args.config)
@@ -286,9 +347,14 @@ def main() -> None:
     opt = optimize_weights(
         conf_val, sq_val, preds_val, labels_val, num_classes,
         args.grid, args.constraint_coverage, floors,
+        conformal_alpha=args.conformal_alpha,
     )
     if opt["best"] is None:
-        print("\nNo feasible weight combination on val. Lower recall floors or expand grid.")
+        if args.conformal_alpha is not None:
+            print(f"\nNo feasible weight combination on val under conformal alpha={args.conformal_alpha}. "
+                  f"Lower recall floors, increase alpha, or expand grid.")
+        else:
+            print("\nNo feasible weight combination on val. Lower recall floors or expand grid.")
         return
     w_star = np.array(opt["best"]["w"], dtype=np.float64)
     print(f"\n*** Optimal weights w* = {dict(zip(label_names, w_star.tolist()))}")
@@ -352,6 +418,7 @@ def main() -> None:
         "grid": args.grid,
         "af_recall_floor": args.af_recall_floor,
         "constraint_coverage": args.constraint_coverage,
+        "conformal_alpha": args.conformal_alpha,
         "label_names": label_names,
         "w_star": dict(zip(label_names, w_star.tolist())),
         "val_best": opt["best"],
