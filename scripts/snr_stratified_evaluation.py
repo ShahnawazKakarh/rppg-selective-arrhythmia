@@ -59,12 +59,40 @@ def stratify_by_tertile(sq: np.ndarray) -> tuple[np.ndarray, list[tuple[float, f
     return bins, edges
 
 
+def _compute_hr_bpm(signals: list[np.ndarray], fs: float) -> np.ndarray:
+    """Per-segment heart-rate estimate via FFT peak in the cardiac band."""
+    out = np.zeros(len(signals), dtype=np.float64)
+    for i, sig in enumerate(signals):
+        x = np.asarray(sig, dtype=np.float64)
+        x = x - x.mean()
+        n = len(x)
+        if n < 32:
+            out[i] = 0.0
+            continue
+        # FFT power spectrum.
+        ps = np.abs(np.fft.rfft(x * np.hanning(n))) ** 2
+        freqs = np.fft.rfftfreq(n, d=1.0 / fs)
+        # Restrict to cardiac band 0.7-3 Hz (42-180 bpm).
+        band = (freqs >= 0.7) & (freqs <= 3.0)
+        if not band.any():
+            out[i] = 0.0
+            continue
+        peak = freqs[band][np.argmax(ps[band])]
+        out[i] = float(peak * 60.0)
+    return out
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--config", type=Path, required=True)
     p.add_argument("--test-predictions", type=Path, required=True)
     p.add_argument("--run-dir", type=Path, required=True)
     p.add_argument("--signal-quality", default="snr_db", choices=["snr_db", "template_sqi"])
+    p.add_argument("--strat-feature", default="snr_db",
+                   choices=["snr_db", "hr_bpm"],
+                   help="Feature to tertile-bin by. snr_db is the spectral SNR "
+                        "used for the LW-CCSD scoring; hr_bpm is the per-segment "
+                        "heart rate estimated by FFT peak in the cardiac band.")
     p.add_argument("--w-nsr", type=float, required=True)
     p.add_argument("--w-af", type=float, required=True)
     p.add_argument("--w-other", type=float, required=True)
@@ -88,8 +116,18 @@ def main() -> None:
     labels, preds, conf = _load_predictions_csv(args.test_predictions)
     assert len(signals) == len(labels)
     sq = _compute_quality(signals, fs=fs, key=args.signal_quality)
+
+    if args.strat_feature == "snr_db":
+        strat_values = sq.copy()
+        strat_label = "SNR (dB)"
+        strat_unit = "dB"
+    else:  # hr_bpm
+        strat_values = _compute_hr_bpm(signals, fs=fs)
+        strat_label = "HR (bpm)"
+        strat_unit = "bpm"
     print(f"test: n={len(labels)}  fs={fs}  classes={label_names}")
     print(f"using w* = {dict(zip(label_names, w_per_class.tolist()))}")
+    print(f"stratifying by: {args.strat_feature}")
 
     # Global metrics for context.
     correct = (preds == labels).astype(np.float64)
@@ -102,11 +140,11 @@ def main() -> None:
           f"({100*(a_uq_global - a_lw_global)/a_uq_global:+.2f}%)")
 
     # Stratify.
-    bin_idx, edges = stratify_by_tertile(sq)
+    bin_idx, edges = stratify_by_tertile(strat_values)
     bin_names = [
-        f"low [{edges[0][0]:.1f}, {edges[0][1]:.1f}]\u202fdB",
-        f"mid [{edges[1][0]:.1f}, {edges[1][1]:.1f}]\u202fdB",
-        f"high [{edges[2][0]:.1f}, {edges[2][1]:.1f}]\u202fdB",
+        f"low [{edges[0][0]:.1f}, {edges[0][1]:.1f}]\u202f{strat_unit}",
+        f"mid [{edges[1][0]:.1f}, {edges[1][1]:.1f}]\u202f{strat_unit}",
+        f"high [{edges[2][0]:.1f}, {edges[2][1]:.1f}]\u202f{strat_unit}",
     ]
 
     out: dict[str, Any] = {

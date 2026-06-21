@@ -294,6 +294,62 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 
 <p>The stratified result therefore both validates the mechanism quantitatively (9&times; AF concentration in the low-SNR tertile) and refines the deployment story: LW-CCSD is most valuable for systems that see mixed clean and noisy inputs and need a single coherent deferral policy across them. On a deployment that handles only one regime &mdash; e.g. a controlled clinical setting with consistently high signal quality &mdash; the marginal value of the method shrinks toward zero.</p>
 
+<h2>5.8&nbsp;&nbsp;Cross-UQ SNR stratification</h2>
+<p>We repeat the SNR-tertile analysis under MC Dropout and deep ensemble confidences (Table&thinsp;7). Both sources reproduce the cross-regime pattern. The ensemble case is the most striking: all three within-bin &Delta; AURCs are <em>negative</em> (low &minus;2.35&thinsp;%, mid &minus;0.19&thinsp;%, high &minus;6.64&thinsp;%), yet the global &Delta; AURC is +4.57&thinsp;%. Under a strong UQ method that already orders samples near-optimally within each bin, LW-CCSD&rsquo;s entire value is in cross-regime re-ordering. This is the unifying mechanism statement across all three UQ sources studied in the paper.</p>
+
+<table class="keep-together">
+<caption><strong>Table 7.</strong> SNR-stratified cross-UQ replication on CinC test set. Global gain is positive everywhere; within-bin behaviour depends on the UQ source. Operating point selected per the floor-0.45 row of the cross-UQ comparison.</caption>
+<thead>
+<tr><th>UQ source</th><th>SNR bin</th><th class="num"><em>n</em></th><th class="num">UQ AURC</th><th class="num">LW AURC</th><th class="num">&Delta; AURC</th></tr>
+</thead>
+<tbody>
+<tr><td rowspan="4">MC Dropout</td><td>low</td><td class="num">2,250</td><td class="num">0.2973</td><td class="num">0.3172</td><td class="num bad">&minus;6.67&thinsp;%</td></tr>
+<tr><td>mid</td><td class="num">2,250</td><td class="num">0.2209</td><td class="num">0.2176</td><td class="num">+1.53&thinsp;%</td></tr>
+<tr><td>high</td><td class="num">2,250</td><td class="num">0.1337</td><td class="num">0.1328</td><td class="num">+0.66&thinsp;%</td></tr>
+<tr><td class="best">global</td><td class="num best">6,750</td><td class="num best">0.1980</td><td class="num best">0.1899</td><td class="num best">+4.08&thinsp;%</td></tr>
+<tr><td rowspan="4">Ensembles (M=5)</td><td>low</td><td class="num">2,287</td><td class="num">0.3643</td><td class="num">0.3729</td><td class="num bad">&minus;2.35&thinsp;%</td></tr>
+<tr><td>mid</td><td class="num">2,287</td><td class="num">0.2003</td><td class="num">0.2007</td><td class="num bad">&minus;0.19&thinsp;%</td></tr>
+<tr><td>high</td><td class="num">2,287</td><td class="num">0.1483</td><td class="num">0.1581</td><td class="num bad">&minus;6.64&thinsp;%</td></tr>
+<tr><td class="best">global</td><td class="num best">6,861</td><td class="num best">0.2155</td><td class="num best">0.2057</td><td class="num best">+4.57&thinsp;%</td></tr>
+</tbody>
+</table>
+
+<h2>5.9&nbsp;&nbsp;HR-stratified evaluation</h2>
+<p>We orthogonally stratify the same test set by per-segment heart rate (FFT-peak estimate in the cardiac band). HR tertiles correspond to bradycardia/normocardia/tachycardia regimes. The class distribution makes this clinically interpretable: 424 of 559 AF segments (76&thinsp;%) live in the high-HR bin (&gt;&thinsp;78&thinsp;bpm), a 4&times; enrichment over the low and mid HR bins. AF prevalence is 3.7&thinsp;%, 3.2&thinsp;%, and <strong>15.4&thinsp;%</strong> in the low / mid / high HR bins respectively. This matches the clinical signature of AF (irregular rhythm often with rapid ventricular response).</p>
+
+<table class="keep-together">
+<caption><strong>Table 8.</strong> HR-stratified evaluation on CinC test set (deterministic classifier, <strong>w</strong>*&nbsp;=&nbsp;(0.3,&thinsp;0.4,&thinsp;0.4)). Per-segment HR estimated by FFT peak in [0.7, 3.0]&thinsp;Hz. AF concentrates in the high-HR tertile; AURC improves in every HR bin.</caption>
+<thead>
+<tr><th>HR bin (bpm)</th><th class="num"><em>n</em></th><th class="num">NSR</th><th class="num">AF</th><th class="num">Other</th><th class="num">UQ AURC</th><th class="num">LW AURC</th><th class="num">&Delta; AURC</th></tr>
+</thead>
+<tbody>
+<tr><td>low  [42, 66]</td><td class="num">1,671</td><td class="num">1,023</td><td class="num">62</td><td class="num">586</td><td class="num">0.3258</td><td class="num">0.3046</td><td class="num">+6.52&thinsp;%</td></tr>
+<tr><td>mid  [66, 78]</td><td class="num">2,317</td><td class="num">1,623</td><td class="num">73</td><td class="num">621</td><td class="num">0.3219</td><td class="num">0.2249</td><td class="num best">+30.13&thinsp;%</td></tr>
+<tr><td>high [78, 174]</td><td class="num">2,762</td><td class="num">1,431</td><td class="num best">424</td><td class="num">907</td><td class="num">0.1845</td><td class="num">0.1518</td><td class="num">+17.74&thinsp;%</td></tr>
+<tr><td class="best">global</td><td class="num best">6,750</td><td class="num">4,077</td><td class="num">559</td><td class="num">2,114</td><td class="num best">0.2367</td><td class="num best">0.1998</td><td class="num best">+15.57&thinsp;%</td></tr>
+</tbody>
+</table>
+
+<p>Unlike the SNR stratification, the HR stratification shows positive &Delta; AURC in <em>every</em> bin, with the strongest gain in the mid-HR regime (+30.13&thinsp;%). The LW-CCSD ranker operates on confidence and SNR, both of which are largely orthogonal to HR; the cross-regime re-ordering it performs therefore carries cleanly across HR tertiles.</p>
+
+<p>One caveat is worth recording honestly. Within the high-HR bin, AF retention at within-bin 50&thinsp;% coverage drops from 0.764 (UQ-only) to 0.066 (LW-CCSD). This is a <em>within-bin ordering</em> metric, not a deployment AF loss: the global LW-CCSD policy still preserves global AF recall at 0.626 (&Delta;&nbsp;=&nbsp;&minus;0.081 from UQ-only), well within the 0.55 floor that selected this operating point. The within-bin drop reflects how the global ranker re-orders AF (which is intrinsically low-SNR) against high-HR NSR / Other inside this AF-dense bin. A deployment running at global coverage 0.5 does not see this 70-point per-bin shift on AF retention &mdash; it sees the global AF recall, which behaves as reported in Table&thinsp;3. We flag the within-bin artifact for transparency, but it does not change the deployment story.</p>
+
+<h2>5.10&nbsp;&nbsp;Continuous-w optimisation</h2>
+<p>The Pareto frontier in Table&thinsp;3 was computed on a discrete 11-point grid for each class, yielding 1,331 candidates total. To rule out grid discretisation as the source of the small non-monotonicities observed in the test-side curve, we re-optimise the floor-0.55 operating point using Nelder&ndash;Mead on continuous <strong>w</strong>&thinsp;&isin;&thinsp;[0,&thinsp;1]<sup>3</sup> with a soft-penalty AF-recall constraint and 8 random restarts (one warm-started from the grid optimum).</p>
+
+<table class="keep-together">
+<caption><strong>Table 9.</strong> Grid vs continuous-<strong>w</strong> optimisation at floor = 0.55, constraint coverage = 0.50. The Nelder&ndash;Mead optimum lies in the same neighbourhood as the grid optimum; test AURC is marginally worse due to val-to-test generalisation, confirming the grid is sufficient.</caption>
+<thead>
+<tr><th>Optimiser</th><th><strong>w</strong>* (NSR / AF / Other)</th><th class="num">val AURC</th><th class="num">test AURC</th><th class="num">&Delta; vs UQ</th><th class="num">AF cost</th></tr>
+</thead>
+<tbody>
+<tr><td>Grid (11<sup>3</sup>)</td><td>0.30 / 0.40 / 0.40</td><td class="num">0.2210</td><td class="num best">0.1998</td><td class="num best">+15.6&thinsp;%</td><td class="num">&minus;0.081</td></tr>
+<tr><td>Continuous (Nelder&ndash;Mead)</td><td>0.16 / 0.43 / 0.48</td><td class="num">0.2202</td><td class="num">0.2015</td><td class="num">+14.9&thinsp;%</td><td class="num">&minus;0.077</td></tr>
+</tbody>
+</table>
+
+<p>The continuous optimum sits in the same neighbourhood as the grid optimum and gives marginally better val AURC (0.2202 vs 0.2210) but marginally worse test AURC (0.2015 vs 0.1998, +0.8&thinsp;% relative regression). This is val-to-test generalisation noise: the finer optimiser locks in a slightly better val-set fit that does not generalise as tightly. The small non-monotonicities in the test-side Pareto frontier reported in Section&thinsp;5.3 are therefore discretisation-and-generalisation artifacts, not optimisation artifacts &mdash; the grid is sufficient and the recommended operating point is robust to optimiser choice.</p>
+
 <!-- ================= DISCUSSION ================= -->
 <h1><span class="section-num">6</span>Discussion</h1>
 
