@@ -8,7 +8,7 @@
 
 This repository introduces and benchmarks **LW-CCSD**, a post-hoc model-agnostic deferral policy for selective prediction in contactless atrial-fibrillation (AF) screening from remote photoplethysmography (rPPG) signals. The method learns per-predicted-class quality weights combining model confidence with spectral signal-to-noise ratio, subject to a configurable per-class recall floor, and produces a tunable Pareto frontier between selective accuracy and clinical AF-recall safety.
 
-> **Status — v1.2.0 preprint released.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.1.0.pdf`](paper/lw-ccsd-rppg-af-v1.1.0.pdf). Preprint on Zenodo: [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). See [Findings](#findings) for the empirical contribution and [Roadmap](#roadmap) for what is still outstanding.
+> **Status — v1.2.0 preprint released.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.2.0.pdf`](paper/lw-ccsd-rppg-af-v1.2.0.pdf). Preprint on Zenodo: [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). See [Findings](#findings) for the empirical contribution and [Roadmap](#roadmap) for what is still outstanding.
 
 ---
 
@@ -314,7 +314,8 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] **HR-stratified evaluation** — 76 % of AF concentrates in the high-HR (tachycardia) bin; AURC improves in every HR tertile; the cross-regime pattern is orthogonal to HR.
 - [x] **Cross-UQ stratification** — SNR-tertile analysis on MC Dropout and Deep Ensembles. Unifying mechanism statement holds across all three UQ sources.
 - [x] **Continuous-w optimization (Nelder–Mead)** — confirms grid optimum is near-optimal; Pareto-frontier non-monotonicities are discretisation-and-generalisation, not optimisation, artifacts.
-- [x] **Paper draft** — 7 sections, 9 tables, 3 figures, complete prose. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.1.0.pdf`. IEEE LaTeX source at `paper/main.tex` for arXiv submission.
+- [x] **Paper draft** — 7 sections, 10 tables, 3 figures, complete prose. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.2.0.pdf`. IEEE LaTeX source at `paper/main.tex` for arXiv submission.
+- [x] **Clean ensemble methodology** — `data_seed` and `model_seed` decoupled in `scripts/train_classifier.py`; ensemble retrained with shared split + independent inits. Clean methodology improves UQ quality (ECE 0.064→ 0.052, AURC 0.2155→ 0.2066) and the LW-CCSD margin (+3.2 % → +6.7 %).
 - [x] **Zenodo preprint v1.0.0** — [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347).
 - [x] **Preprints.org submission** — awaiting moderator approval.
 - [x] **SSRN submission** — awaiting review.
@@ -322,7 +323,6 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 
 ### Up next (post-v1 paper polish)
 - [ ] **Per-split class-coverage verification utility** — catch the v0 failure mode before training.
-- [ ] **Separate `data_seed` from `model_seed`** for clean deep-ensemble methodology; retrain ensemble, re-evaluate the cross-UQ LW-CCSD frontier.
 - [ ] **TechRxiv submission** when their migration completes; same PDF, no endorsement.
 - [ ] **arXiv endorsement request** in cs.LG or eess.SP; submit LaTeX source.
 - [ ] **IEEE BSPC or J-BHI submission** after preprints are live.

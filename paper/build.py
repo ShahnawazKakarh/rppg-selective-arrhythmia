@@ -18,7 +18,7 @@ PAPER_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PAPER_DIR.parent
 HTML_IN = PAPER_DIR / "report.html"
 CSS_IN = PAPER_DIR / "style.css"
-PDF_OUT = PAPER_DIR / "lw-ccsd-rppg-af-v1.1.0.pdf"
+PDF_OUT = PAPER_DIR / "lw-ccsd-rppg-af-v1.2.0.pdf"
 
 
 def main() -> int:
