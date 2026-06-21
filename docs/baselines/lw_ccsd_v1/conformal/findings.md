@@ -64,3 +64,28 @@ The exchangeability assumption is the standard one for split conformal predictio
 - For multi-class joint coverage (P(all class recalls $\geq f$) $\geq 1 − α$), a Bonferroni adjustment to per-class α is straightforward and increases conservatism by at most a factor of $C$ classes. We report per-class guarantees throughout; the joint statement is reported as "all per-class coverages hold simultaneously at family-wise $1 − Cα$."
 - Continuous-w optimisation (Nelder-Mead, CMA-ES) would smooth the small grid-discreteness non-monotonicities reported in the original LW-CCSD findings and remains a natural refinement. The conformal feasibility check transfers unchanged to the continuous setting.
 - Replicating the conformal frontier on real-rPPG OBF / MAHNOB-HCI face-video AF data is the principal next step once data access lands.
+
+## Joint family-wise coverage via Bonferroni (added v1.2.0)
+
+The per-class guarantee above is P(test recall<sub>c</sub>&nbsp;&ge;&nbsp;<em>f<sub>c</sub></em>)&nbsp;&ge;&nbsp;1&nbsp;&minus;&nbsp;<em>&alpha;</em> for each class <em>c</em> independently. The joint statement P(<em>all</em> per-class recalls &ge; floor) &ge; 1&nbsp;&minus;&nbsp;<em>&alpha;</em> is strictly stronger and is what a regulator may want.
+
+A standard Bonferroni correction yields the joint guarantee: compute each per-class LCB at level <em>&alpha;</em>&thinsp;/&thinsp;<em>C</em> rather than <em>&alpha;</em>. By the union bound, the probability of any class violating its floor is at most $C \cdot (\alpha/C) = \alpha$, so the probability of every class satisfying its floor is at least $1 - \alpha$.
+
+The optimizer accepts `--conformal-joint-bonferroni`. When set alongside `--conformal-alpha`, the per-class LCB level is divided by the number of classes before computing feasibility.
+
+Results on CinC test ($n = 6{,}750$), deterministic classifier, $c_0 = 0.50$, family-wise $\alpha = 0.10$ (per-class $\alpha/C = 0.033$):
+
+| Mode                        | Floor | $\mathbf{w}^{*}$ (NSR/AF/Other) | Test AURC | $\Delta$ vs UQ | Test AF@0.5 | Δ AF |
+|---|---:|---|---:|---:|---:|---:|
+| Per-class (reference)        | 0.52  | 0.3 / 0.4 / 0.4 | 0.1998 | +15.6 % | 0.626 | −0.081 |
+| **Joint (Bonferroni)**       | **0.50**  | **0.0 / 0.5 / 0.6** | **0.2046** | **+13.55 %** | **0.614** | **−0.093** |
+| Joint (Bonferroni)           | 0.45  | 0.1 / 0.5 / 0.5 | 0.2007 | +15.22 % | 0.567 | −0.140 |
+| Joint (Bonferroni)           | 0.40  | 0.2 / 0.5 / 0.4 | 0.1977 | +16.49 % | 0.526 | −0.181 |
+
+### Reading
+
+- **The cost of the joint guarantee is 2.05 % relative AURC** at comparable AF safety (joint 0.50-floor vs per-class 0.52-floor). For that price the system carries a strictly stronger probabilistic statement that *every* class simultaneously satisfies its floor with $\geq 0.90$ probability.
+- **Bonferroni is conservative for $C = 3$.** The union bound treats the per-class events as if their failure modes were perfectly correlated; in practice they are not. Tighter joint bounds (Holm step-down rejection, or a direct multivariate-beta tail bound on the joint distribution of recalls) would close some of the 2.05-point gap. For paper v1 we report Bonferroni because it is the cleanest and most defensible procedure; sharper joint bounds are a natural v2 extension.
+- **The principal claim now ranges from per-class to joint without redesign.** A deployer can pick the coverage statement that matches the regulatory or clinical risk model: per-class for class-by-class accountability, joint for a single system-level guarantee.
+
+Written up in paper Section 5.6 as the “Joint family-wise coverage via Bonferroni” paragraph + Table 5b.

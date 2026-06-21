@@ -320,9 +320,9 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] **Preprints.org submission** — awaiting moderator approval.
 - [x] **SSRN submission** — awaiting review.
 - [x] **CITATION.cff** with ORCID + Zenodo DOI for GitHub's "Cite this repository" button.
+- [x] **Per-split class-coverage verification utility** — `scripts/verify_split_coverage.py` rebuilds the dataset and splits using the same code path as the trainer, asserts every class is present in every split with non-trivial count, and reports per-class fractions vs the global distribution. Wired into `tests/test_split_coverage.py` so the v0 failure mode (entire class missing from a split) is caught in CI before training starts.
 
 ### Up next (post-v1 paper polish)
-- [ ] **Per-split class-coverage verification utility** — catch the v0 failure mode before training.
 - [ ] **TechRxiv submission** when their migration completes; same PDF, no endorsement.
 - [ ] **arXiv endorsement request** in cs.LG or eess.SP; submit LaTeX source.
 - [ ] **IEEE BSPC or J-BHI submission** after preprints are live.

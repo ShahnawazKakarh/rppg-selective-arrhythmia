@@ -309,6 +309,11 @@ def main() -> None:
                    help="If set (e.g. 0.10), enforce per-class recall floor on the "
                         "Clopper-Pearson one-sided lower confidence bound of val recall, "
                         "yielding P(true recall >= floor) >= 1 - alpha under exchangeability.")
+    p.add_argument("--conformal-joint-bonferroni", action="store_true",
+                   help="If set with --conformal-alpha, applies Bonferroni correction across "
+                        "the num_classes per-class LCBs: each per-class LCB is computed at "
+                        "alpha/C, yielding the family-wise guarantee "
+                        "P(ALL per-class recalls >= floor) >= 1 - alpha under exchangeability.")
     args = p.parse_args()
 
     cfg = load_config(args.config)
@@ -344,10 +349,18 @@ def main() -> None:
           f"{dict(zip(label_names, rec_uq.tolist()))}  "
           f"(val AURC = {aurc(score_uq_val, correct_val):.4f})")
 
+    # Resolve effective per-class alpha under optional Bonferroni correction.
+    effective_alpha = args.conformal_alpha
+    if args.conformal_alpha is not None and args.conformal_joint_bonferroni:
+        effective_alpha = args.conformal_alpha / float(num_classes)
+        print(f"Bonferroni joint coverage: per-class alpha = {args.conformal_alpha} / {num_classes} = "
+              f"{effective_alpha:.4f}; family-wise guarantee P(all recalls >= floor) >= "
+              f"{1 - args.conformal_alpha:.2f}.")
+
     opt = optimize_weights(
         conf_val, sq_val, preds_val, labels_val, num_classes,
         args.grid, args.constraint_coverage, floors,
-        conformal_alpha=args.conformal_alpha,
+        conformal_alpha=effective_alpha,
     )
     if opt["best"] is None:
         if args.conformal_alpha is not None:
@@ -419,6 +432,8 @@ def main() -> None:
         "af_recall_floor": args.af_recall_floor,
         "constraint_coverage": args.constraint_coverage,
         "conformal_alpha": args.conformal_alpha,
+        "conformal_joint_bonferroni": args.conformal_joint_bonferroni,
+        "conformal_alpha_effective_per_class": effective_alpha,
         "label_names": label_names,
         "w_star": dict(zip(label_names, w_star.tolist())),
         "val_best": opt["best"],
