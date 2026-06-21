@@ -14,7 +14,7 @@
     <hr class="cover-divider">
     <div class="cover-author">Muhammad Shahnawaz Khan</div>
     <div class="cover-author-meta">Independent Researcher · Lahore, Pakistan · ORCID 0009-0007-4055-6563</div>
-    <div class="cover-date">June 2026 · v1.1.0</div>
+    <div class="cover-date">June 2026 · v1.2.0</div>
     <hr class="cover-divider">
     <div class="cover-bottom">
         <span class="label">Code &amp; Data:</span> github.com/ShahnawazKakarh/rppg-selective-arrhythmia<br>
@@ -223,12 +223,12 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <tbody>
 <tr><td>Deterministic</td><td class="num">0.2367</td><td class="num best">0.2082</td><td class="num best">+12.1&thinsp;%</td><td class="num">&minus;0.045</td></tr>
 <tr><td>MC Dropout</td><td class="num">0.1980</td><td class="num">0.1899</td><td class="num">+4.1&thinsp;%</td><td class="num">&minus;0.029</td></tr>
-<tr><td>Ensembles (<em>M</em>&thinsp;=&thinsp;5)</td><td class="num">0.2155</td><td class="num">0.2086</td><td class="num">+3.2&thinsp;%</td><td class="num">&minus;0.023</td></tr>
+<tr><td>Ensembles (<em>M</em>&thinsp;=&thinsp;5, clean methodology)</td><td class="num">0.2066</td><td class="num">0.1928</td><td class="num">+6.7&thinsp;%</td><td class="num">&minus;0.032</td></tr>
 </tbody>
 </table>
 
 <p>The SQI-deferral gain scales inversely with the underlying UQ informativeness. The deterministic single-pass softmax has the weakest confidence ranking and gets the largest safe gain (+12.1&thinsp;% at &minus;0.045 AF cost). MC Dropout entropy is a stronger ranking and the gain is correspondingly smaller (+4.1&thinsp;%). Ensemble-averaged softmax is the strongest of the three and the LW-CCSD margin is just +3.2&thinsp;%.</p>
-<p>The practical consequence is striking. The deterministic-classifier LW-CCSD operating point at floor 0.55 achieves test AURC 0.1998. This is <em>below</em> the unaugmented ensemble UQ-only baseline of 0.2155. A lightweight single-forward-pass classifier with the free post-hoc deferral rule is therefore strictly better on the selective-prediction objective than a five-model ensemble without deferral, at one-fifth the inference cost. We treat this as evidence that LW-CCSD is not merely an add-on to ensembling &mdash; in many practical regimes it is a viable substitute.</p>
+<p>The practical consequence is striking. The deterministic-classifier LW-CCSD operating point at floor 0.55 achieves test AURC 0.1998. This is <em>below</em> the unaugmented clean-methodology ensemble UQ-only baseline of 0.2066 (Section&thinsp;5.11). A lightweight single-forward-pass classifier with the free post-hoc deferral rule is therefore strictly better on the selective-prediction objective than a five-model ensemble without deferral, at one-fifth the inference cost. We treat this as evidence that LW-CCSD is not merely an add-on to ensembling &mdash; in many practical regimes it is a viable substitute.</p>
 <p>The MIT-BIH replication (supplementary; see <code>docs/baselines/lw_ccsd_v1/mitbih/</code>) returned the trivial solution <strong>w</strong>*&thinsp;=&thinsp;(0,&thinsp;0,&thinsp;0), i.e.&nbsp;LW-CCSD reduced to UQ-only with no test-side change. The MIT-BIH classifier is degenerate (only 4 AF training records, 90&ndash;100&thinsp;% AF accuracy on test, 0&thinsp;% NSR accuracy at low coverage); under such conditions the SQI signal has nothing orthogonal to add and the constrained optimiser correctly returns the no-op. This is the method&rsquo;s graceful-degradation property: when SQI cannot help, LW-CCSD does not hurt.</p>
 
 <h2>5.5&nbsp;&nbsp;Mechanism: Why Na&iuml;ve SQI Fails on AF</h2>
@@ -350,6 +350,25 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 
 <p>The continuous optimum sits in the same neighbourhood as the grid optimum and gives marginally better val AURC (0.2202 vs 0.2210) but marginally worse test AURC (0.2015 vs 0.1998, +0.8&thinsp;% relative regression). This is val-to-test generalisation noise: the finer optimiser locks in a slightly better val-set fit that does not generalise as tightly. The small non-monotonicities in the test-side Pareto frontier reported in Section&thinsp;5.3 are therefore discretisation-and-generalisation artifacts, not optimisation artifacts &mdash; the grid is sufficient and the recommended operating point is robust to optimiser choice.</p>
 
+<h2>5.11&nbsp;&nbsp;Clean ensemble methodology &mdash; decoupling data_seed from model_seed</h2>
+<p>The original ensemble in Section&thinsp;5.4 was trained with the legacy single-seed API, which inadvertently caused the five members to see five <em>different</em> train/val/test splits in addition to different initialisations. Standard deep-ensemble methodology (Lakshminarayanan <em>et&thinsp;al.</em> 2017) prescribes a shared split with independent initialisations &mdash; ensemble diversity should come from initialisation alone, not from split-induced data variance. We retrained the five-member ensemble with separated <code>data_seed</code> (shared) and <code>model_seed</code> (varied) and report the result in Table&thinsp;10.</p>
+
+<table class="keep-together">
+<caption><strong>Table 10.</strong> Coupled-seed vs clean-seed five-model ensemble on CinC test set (<em>n</em>&thinsp;=&thinsp;6,750). Clean methodology improves both UQ quality (lower AURC, lower ECE) and the magnitude of the LW-CCSD margin on top.</caption>
+<thead>
+<tr><th>Methodology</th><th class="num">Test Acc</th><th class="num">ECE&thinsp;&darr;</th><th class="num">Brier&thinsp;&darr;</th><th class="num">UQ-only AURC</th><th class="num">Best safe LW-CCSD AURC</th><th class="num">&Delta; LW-CCSD</th></tr>
+</thead>
+<tbody>
+<tr><td>Coupled seed (original)</td><td class="num">0.686</td><td class="num">0.064</td><td class="num">0.440</td><td class="num">0.2155</td><td class="num">0.2086</td><td class="num">+3.2&thinsp;%</td></tr>
+<tr><td class="best">Clean seed (shared split, independent inits)</td><td class="num best">0.692</td><td class="num best">0.052</td><td class="num">0.440</td><td class="num best">0.2066</td><td class="num best">0.1928</td><td class="num best">+6.7&thinsp;%</td></tr>
+</tbody>
+</table>
+
+<p>Two findings.</p>
+<p><strong>The split-induced variance was injecting noise into the calibration story.</strong> Under clean methodology, ECE drops from 0.064 to 0.052 (1.2-point absolute reduction) and test AURC drops from 0.2155 to 0.2066 (4.1&thinsp;% relative improvement) &mdash; both with no architectural change. The original ensemble&rsquo;s split-induced variance was systematically masking the UQ quality the architecture is actually capable of.</p>
+<p><strong>The LW-CCSD gain is larger under clean methodology, not smaller.</strong> Best safe operating point moves from +3.2&thinsp;% AURC (coupled) to +6.7&thinsp;% AURC (clean). Two complementary mechanisms account for this: (a) when ensemble members saw different splits, their per-segment uncertainty included a noise component due to which-split-this-was rather than how-uncertain-the-classifier-actually-is; under shared-split methodology the confidence ranking is closer to a clean estimate of within-record uncertainty, and SNR adds more discriminating cross-regime information on top; (b) better calibration means the LW-CCSD optimiser&rsquo;s val-AURC objective is closer to the test-AURC quantity it actually cares about, yielding operating points that generalise more tightly.</p>
+<p>Note that the deployment punchline strengthens under the clean ensemble baseline: deterministic + LW-CCSD (0.1998) still beats clean ensemble UQ-only (0.2066) by 3.3&thinsp;% relative AURC at one-fifth the inference compute. The substitution claim was not artifactual of the original ensemble&rsquo;s methodology weakness; it holds against the cleaner baseline.</p>
+
 <!-- ================= DISCUSSION ================= -->
 <h1><span class="section-num">6</span>Discussion</h1>
 
@@ -357,7 +376,7 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <p>LW-CCSD succeeds because spectral SNR carries deferral-relevant information that model confidence does not, but only for some predicted classes. Predictions of NSR or Other rhythms on noisy windows are typically over-confident: the classifier learned features tied to rhythm regularity, which are corrupted by camera motion, lighting flicker, and partial face occlusion in ways the per-window confidence score cannot detect. SNR exposes this corruption directly. Predictions of AF, on the other hand, are correctly less confident on noisy windows (because the AF-defining irregularity raises uncertainty in the same direction as motion noise) but <em>also</em> less confident on clean windows (because regularity is the NSR signature). Weighting SNR on AF predictions therefore double-counts the irregularity penalty and rejects positives. The learned per-class weight resolves this: the optimiser discovers a small or zero weight on the AF class and larger weights on NSR / Other, precisely where SNR adds orthogonal information.</p>
 
 <h2>6.2&nbsp;&nbsp;Deployment Implications</h2>
-<p>LW-CCSD applied to a single-pass deterministic classifier achieves test AURC 0.1998 at AF-recall cost &minus;0.081 (operating point: val floor 0.55). An unaugmented five-model deep ensemble on the same data achieves test AURC 0.2155 &mdash; worse, at five times the inference compute. The lightweight model plus the free post-hoc deferral rule outperforms ensembling. For clinical-screen deployment where compute and latency budgets are tight, this suggests LW-CCSD is a viable substitute for ensembling rather than an add-on to it.</p>
+<p>LW-CCSD applied to a single-pass deterministic classifier achieves test AURC 0.1998 at AF-recall cost &minus;0.081 (operating point: val floor 0.55). An unaugmented five-model deep ensemble (clean methodology, Section&thinsp;5.11) on the same data achieves test AURC 0.2066 &mdash; worse, at five times the inference compute. The lightweight model plus the free post-hoc deferral rule outperforms ensembling. For clinical-screen deployment where compute and latency budgets are tight, this suggests LW-CCSD is a viable substitute for ensembling rather than an add-on to it.</p>
 <p>The cross-UQ pattern also has a practical implication: when investing in stronger UQ (MC Dropout at <em>T</em>&thinsp;=&thinsp;30, ensembles at <em>M</em>&thinsp;=&thinsp;5), the marginal value of adding SNR-based deferral shrinks. A deployed system should therefore make the UQ-method choice and the SQI-deferral choice jointly &mdash; they are partial substitutes, not independent additions.</p>
 
 <h2>6.3&nbsp;&nbsp;Limitations</h2>

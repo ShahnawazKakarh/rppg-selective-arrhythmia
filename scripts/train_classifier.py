@@ -104,9 +104,10 @@ def _build_dataset(cfg: dict[str, Any]):
                 ds,
                 val_frac=float(cfg["data"].get("val_frac", 0.15)),
                 test_frac=float(cfg["data"].get("test_frac", 0.15)),
-                seed=int(cfg["experiment"]["seed"]),
+                seed=int(cfg["experiment"]["data_seed"]),
             )
-            print(f"auto-split subjects: train {len(train_ids)} | val {len(val_ids)} | test {len(test_ids)}")
+            print(f"auto-split subjects (data_seed={cfg['experiment']['data_seed']}): "
+                  f"train {len(train_ids)} | val {len(val_ids)} | test {len(test_ids)}")
         train_idx, val_idx, test_idx = subject_disjoint_split(ds, train_ids, val_ids, test_ids)
         return ds, train_idx, val_idx, test_idx, ds.LABEL_NAMES
     if source == "synth_rppg_cinc":
@@ -138,9 +139,10 @@ def _build_dataset(cfg: dict[str, Any]):
                 cfg["data"]["root"],
                 val_frac=float(cfg["data"].get("val_frac", 0.15)),
                 test_frac=float(cfg["data"].get("test_frac", 0.15)),
-                seed=int(cfg["experiment"]["seed"]),
+                seed=int(cfg["experiment"]["data_seed"]),
             )
-            print(f"auto-split records: train {len(train_ids)} | val {len(val_ids)} | test {len(test_ids)}")
+            print(f"auto-split records (data_seed={cfg['experiment']['data_seed']}): "
+                  f"train {len(train_ids)} | val {len(val_ids)} | test {len(test_ids)}")
         train_idx, val_idx, test_idx = cinc_split(ds, train_ids, val_ids, test_ids)
         return ds, train_idx, val_idx, test_idx, ds.LABEL_NAMES
     raise ValueError(f"Unsupported data source: {source}")
@@ -197,19 +199,46 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train arrhythmia classifier.")
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=None,
-                        help="Override experiment.seed (used for ensemble members).")
+                        help="Legacy: set both data_seed and model_seed to this value. "
+                             "Use --data-seed / --model-seed for the decoupled methodology.")
+    parser.add_argument("--data-seed", type=int, default=None,
+                        help="Seed for train/val/test split. Same across ensemble members.")
+    parser.add_argument("--model-seed", type=int, default=None,
+                        help="Seed for model initialisation + DataLoader shuffle. "
+                             "Differs across ensemble members.")
     parser.add_argument("--name-suffix", type=str, default="",
                         help="Append to experiment.name; lands in runs/<name><suffix>/.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+
+    # Resolve data_seed and model_seed with backwards compatibility.
+    legacy_seed = int(cfg["experiment"].get("seed", 0))
+    data_seed = args.data_seed
+    model_seed = args.model_seed
     if args.seed is not None:
-        cfg["experiment"]["seed"] = int(args.seed)
+        # Legacy single-seed path: both seeds default to this value, but explicit
+        # --data-seed / --model-seed still take precedence.
+        if data_seed is None:
+            data_seed = args.seed
+        if model_seed is None:
+            model_seed = args.seed
+    if data_seed is None:
+        data_seed = int(cfg["experiment"].get("data_seed", legacy_seed))
+    if model_seed is None:
+        model_seed = int(cfg["experiment"].get("model_seed", legacy_seed))
+
+    cfg["experiment"]["data_seed"] = int(data_seed)
+    cfg["experiment"]["model_seed"] = int(model_seed)
+    # Keep legacy field present so downstream tooling that reads experiment.seed
+    # still finds a value; resolve it to model_seed since that affects torch state.
+    cfg["experiment"]["seed"] = int(model_seed)
     if args.name_suffix:
         cfg["experiment"]["name"] = cfg["experiment"]["name"] + args.name_suffix
-    set_seed(int(cfg["experiment"]["seed"]))
+
+    set_seed(int(model_seed))
     device = _resolve_device(cfg["experiment"]["device"])
-    print(f"Device: {device}")
+    print(f"Device: {device}  data_seed={data_seed}  model_seed={model_seed}")
 
     # ---------- Data ----------
     full_ds, train_idx, val_idx, test_idx, label_names = _build_dataset(cfg)

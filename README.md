@@ -1,10 +1,14 @@
 # rppg-selective-arrhythmia
 
-**Selective prediction with calibrated uncertainty for contactless arrhythmia detection from facial video (rPPG).**
+**Learned Class-Conditional Signal-Quality Deferral (LW-CCSD) for selective rPPG-based atrial fibrillation screening.**
 
-This repository benchmarks five uncertainty-quantification (UQ) methods on remote photoplethysmography (rPPG) signals derived from public face-video datasets, with the goal of producing a clinically deployable atrial-fibrillation (AF) screen that *defers* to a clinician when its confidence is insufficient.
+[![Zenodo DOI](https://img.shields.io/badge/Zenodo-10.5281%2Fzenodo.20776347-blue)](https://zenodo.org/records/20776347)
+[![ORCID](https://img.shields.io/badge/ORCID-0009--0007--4055--6563-a6ce39)](https://orcid.org/0009-0007-4055-6563)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Status — research in progress.** Pipeline implemented; results pending. See [Findings](#findings) for the current state of empirical results, and [Roadmap](#roadmap) for what is still outstanding.
+This repository introduces and benchmarks **LW-CCSD**, a post-hoc model-agnostic deferral policy for selective prediction in contactless atrial-fibrillation (AF) screening from remote photoplethysmography (rPPG) signals. The method learns per-predicted-class quality weights combining model confidence with spectral signal-to-noise ratio, subject to a configurable per-class recall floor, and produces a tunable Pareto frontier between selective accuracy and clinical AF-recall safety.
+
+> **Status — v1.2.0 preprint released.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.1.0.pdf`](paper/lw-ccsd-rppg-af-v1.1.0.pdf). Preprint on Zenodo: [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). See [Findings](#findings) for the empirical contribution and [Roadmap](#roadmap) for what is still outstanding.
 
 ---
 
@@ -36,10 +40,14 @@ This repository is the empirical study to fill that gap. The framing is three vi
 
 ## Contributions
 
-1. **First selective-prediction framework** for contactless arrhythmia detection from facial video.
-2. **Benchmark of five UQ methods** on rPPG-derived AF classification — MC Dropout, Deep Ensembles, Evidential Deep Learning, SNGP, and Conformal Prediction — with risk-coverage and calibration metrics absent from prior work.
-3. **Signal-quality-aware deferral**: a deferral policy that combines model uncertainty with a physical signal-quality estimate (spectral SNR and template SQI), exploiting information that prior rPPG-AF work discards.
-4. **Open-source pipeline** released under MIT — data loaders, classical and learned rPPG extractors, classifier, five UQ heads, and selective-evaluation utilities.
+1. **LW-CCSD (Learned Class-Conditional Signal-Quality Deferral)** — a post-hoc, model-agnostic deferral policy that learns per-predicted-class quality weights with a configurable per-class recall floor. Produces a tunable Pareto frontier between selective accuracy and AF-recall safety. (Headline contribution.)
+2. **Conformal LW-CCSD extension** — Clopper–Pearson finite-sample lower bound on val recall yields a distribution-free coverage guarantee on test recall with essentially zero operational penalty.
+3. **First selective-prediction framework for contactless arrhythmia detection from facial video.** Three UQ methods (MC Dropout, Deep Ensembles, Conformal Prediction) benchmarked with risk-coverage and calibration metrics, on a 45,064-segment synthetic-rPPG substrate derived from PhysioNet/CinC 2017.
+4. **Empirical mechanism for naive-SQI failure** — quantifies why combining model confidence with signal quality at a single shared weight collapses AF recall from 0.71 to 0.04 at 50 % coverage: AF's irregular rhythm is itself a low-SNR signature in the cardiac band. SNR is shown to be a *class proxy* (88 % of AF segments live in the low-SNR tertile).
+5. **Two-axis stratification analysis** — SNR tertile and HR tertile, on three UQ sources, confirms LW-CCSD's gain comes from cross-regime re-ordering rather than within-regime improvement, with positive AURC gain in every HR bin.
+6. **Continuous-w optimisation** — Nelder–Mead with soft-penalty constraints confirms the grid-based optimum is in the right neighbourhood; the small test-side non-monotonicities are discretisation-and-generalisation artifacts, not optimisation artifacts.
+7. **Deployment finding** — LW-CCSD applied to a single-pass deterministic classifier outperforms an unaugmented five-model deep ensemble on test AURC at one-fifth the inference cost. The method substitutes for compute-expensive ensembling.
+8. **Open-source pipeline** released under MIT — data loaders, classical rPPG extractors, classifier, three UQ heads, selective-evaluation utilities, paper LaTeX and HTML sources, and figure generation scripts.
 
 ## Repository layout
 
@@ -290,38 +298,49 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 
 ## Roadmap
 
-### Done
-- [x] UQ heads: MC Dropout, Deep Ensembles, Conformal Prediction (working end-to-end).
-- [x] MIT-BIH UQ v1 — three UQ methods compared on a working classifier (pinned).
-- [x] MIT-BIH → synthetic rPPG synthesis pipeline (R-peak detection + beat template + 30 Hz downsample + noise model).
-- [x] CinC 2017 AF Challenge → synth-rPPG at 14× the MIT-BIH AF training scale (8,244 records, 45,064 segments). Three UQ methods compared.
-- [x] Signal-quality-aware deferral: naive SNR-weighted deferral beats UQ-only by 18 % AURC on aggregate but collapses AF recall (intrinsic class-signal collision).
-- [x] Per-class breakdown of the aggregate SQI gain (AF-collapse mechanism).
-- [x] `af_immune` hand-tuned class-conditional rule: safe but conservative.
-- [x] **LW-CCSD — Learned Class-Conditional SQI Deferral** with formal AF-recall-floor constraint. Pareto frontier mapped across three UQ sources. **Deployment punchline:** LW-CCSD on a single-pass deterministic classifier beats the 5-model ensemble UQ-only baseline on test AURC.
-- [x] CITATION.cff + ORCID for GitHub's "Cite this repository" button.
+### Done (v1.0.0 → v1.2.0)
+- [x] UQ heads: MC Dropout, Deep Ensembles, Conformal Prediction (working end-to-end on two real ECG datasets and one synthetic substrate).
+- [x] MIT-BIH UQ v1 — three UQ methods compared on a working classifier; pinned.
+- [x] MIT-BIH → synthetic rPPG synthesis pipeline (R-peak detection + asymmetric Gaussian beat template + 30 Hz downsample + noise model).
+- [x] CinC 2017 AF Challenge → synth-rPPG at 14× the MIT-BIH AF training scale (8,244 records, 45,064 segments). Three UQ methods compared, all well calibrated.
+- [x] Signal-quality-aware deferral (naive single-shared-w): 18 % aggregate AURC gain but AF recall collapses from 0.71 to 0.04 at 50 % coverage — the negative finding that motivated LW-CCSD.
+- [x] Per-class breakdown of the aggregate SQI gain (AF-collapse mechanism, quantitative SNR distributions).
+- [x] `af_immune` hand-tuned class-conditional rule — safe but conservative.
+- [x] **LW-CCSD** — Learned Class-Conditional SQI Deferral with formal AF-recall-floor constraint. Pareto frontier mapped across three UQ sources.
+- [x] **Deployment punchline:** LW-CCSD on a single-pass deterministic classifier beats the 5-model ensemble UQ-only baseline on test AURC at 1/5 the inference cost.
+- [x] **LW-CCSD on MIT-BIH classifier** — cross-dataset robustness check; the method has graceful degradation (returns w* = (0, 0, 0) on a degenerate classifier).
+- [x] **Conformal LW-CCSD** — Clopper–Pearson finite-sample lower bound on val recall; identical operating point at 90 % confidence, 0.6 % relative AURC cost at 95 % confidence.
+- [x] **SNR-stratified evaluation** — quantitative confirmation that SNR is a class proxy (88 % of AF in low-SNR tertile, 9× over base rate). Cross-regime mechanism isolated.
+- [x] **HR-stratified evaluation** — 76 % of AF concentrates in the high-HR (tachycardia) bin; AURC improves in every HR tertile; the cross-regime pattern is orthogonal to HR.
+- [x] **Cross-UQ stratification** — SNR-tertile analysis on MC Dropout and Deep Ensembles. Unifying mechanism statement holds across all three UQ sources.
+- [x] **Continuous-w optimization (Nelder–Mead)** — confirms grid optimum is near-optimal; Pareto-frontier non-monotonicities are discretisation-and-generalisation, not optimisation, artifacts.
+- [x] **Paper draft** — 7 sections, 9 tables, 3 figures, complete prose. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.1.0.pdf`. IEEE LaTeX source at `paper/main.tex` for arXiv submission.
+- [x] **Zenodo preprint v1.0.0** — [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347).
+- [x] **Preprints.org submission** — awaiting moderator approval.
+- [x] **SSRN submission** — awaiting review.
+- [x] **CITATION.cff** with ORCID + Zenodo DOI for GitHub's "Cite this repository" button.
 
-### Up next (high-leverage, low-cost)
-- [ ] **LW-CCSD on MIT-BIH classifier** — cross-dataset robustness of the Pareto frontier shape. ~5 min of compute, no retraining.
+### Up next (post-v1 paper polish)
 - [ ] **Per-split class-coverage verification utility** — catch the v0 failure mode before training.
-- [ ] **Separate `data_seed` from `model_seed`** for clean deep-ensemble methodology; retrain ensemble, re-evaluate.
-- [ ] **arXiv preprint draft** — the technical story is now coherent enough; LW-CCSD is the contribution; CinC synth-rPPG is the substrate; the Pareto frontier is figure 1; the deployment punchline is the abstract.
+- [ ] **Separate `data_seed` from `model_seed`** for clean deep-ensemble methodology; retrain ensemble, re-evaluate the cross-UQ LW-CCSD frontier.
+- [ ] **TechRxiv submission** when their migration completes; same PDF, no endorsement.
+- [ ] **arXiv endorsement request** in cs.LG or eess.SP; submit LaTeX source.
+- [ ] **IEEE BSPC or J-BHI submission** after preprints are live.
 
-### Methodology extensions (paper revisions)
-- [ ] **Conformal LW-CCSD** — replace the hard recall floor with a finite-sample conformal guarantee on AF-recall under exchangeability. Stronger theoretical claim.
-- [ ] **Finer grid + gradient-free optimizer** (Nelder-Mead on val AURC subject to floors) to smooth the small non-monotonicity in the test-side Pareto curve.
-- [ ] **Demographic-stratified evaluation** — stratify by SNR bin / HR bin / record-length bin as a proxy for demographic subpopulations.
+### Methodology extensions (paper v2.0)
+- [ ] **Bonferroni-corrected joint conformal coverage** — P(all per-class recalls ≥ floor) ≥ 1 − Cα; tighter family-wise guarantee.
 - [ ] **Evidential Deep Learning training-time integration** — 4th UQ method in the comparison table.
 - [ ] **SNGP** — spectral-normalized backbone + random-feature GP head (5th UQ method).
+- [ ] **Real demographic stratification** — when OBF / MAHNOB-HCI metadata becomes available (current proxy: SNR and HR tertiles).
 
-### Data scaling
+### Data scaling (paper v2.0)
 - [ ] **MAHNOB-HCI access request** (parallel face-video AF channel).
 - [ ] **Phase-2 results on OBF / MAHNOB-HCI** — pending data access. When face-video AF data arrives, LW-CCSD is the first experiment to run.
 - [ ] **Phase-1 classifier training on MCD-rPPG healthy-cohort pulse waveforms** (revisited if useful for a robustness section).
 
-### rPPG extractor work (deferred)
-- [ ] **MediaPipe-based face-ROI extraction wired into the dataset pipeline** (currently used only in scripts/validate_rppg_on_mcd.py).
-- [ ] **Scale MCD-rPPG validation to all 600 subjects** (currently 100). Closes remaining gap to paper's 3.80 bpm POS baseline.
+### rPPG extractor work (research-line extension)
+- [ ] **MediaPipe-based face-ROI extraction wired into the dataset pipeline** (currently used only in `scripts/validate_rppg_on_mcd.py`).
+- [ ] **Scale MCD-rPPG validation to all 600 subjects** (currently 100). Closes remaining gap to paper's 3.80 bpm POS baseline.
 - [ ] **PhysNet learned rPPG extractor** — next-step contender for the high-HR sub-harmonic-lock failure mode observed on MCD-rPPG.
 
 ### Training infrastructure (low priority)
@@ -329,21 +348,22 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 
 ## How to cite
 
-If this repository contributes to your research, please cite the project repository. A preprint and journal version will be added here when available.
+If this repository contributes to your research, please cite the Zenodo preprint and the source repository:
 
 ```bibtex
-@misc{khan2026rppg_sa,
+@article{khan2026lwccsd,
   author       = {Khan, Muhammad Shahnawaz},
-  title        = {{rppg-selective-arrhythmia}: Selective prediction with calibrated uncertainty for contactless arrhythmia detection from facial video},
+  title        = {Learned Class-Conditional Signal-Quality Deferral for Selective {rPPG}-Based Atrial Fibrillation Screening},
   year         = {2026},
-  howpublished = {\url{https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}},
-  note         = {Work in progress.}
+  month        = {jun},
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.20776347},
+  url          = {https://zenodo.org/records/20776347},
+  note         = {Preprint. Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
 }
 ```
 
-A machine-readable [`CITATION.cff`](CITATION.cff) is included at the repository root so GitHub's "Cite this repository" button works directly.
-
-When the accompanying paper appears on arXiv, the entry above will be updated to point to it.
+A machine-readable [`CITATION.cff`](CITATION.cff) is included at the repository root so GitHub's "Cite this repository" button works directly. The DOI resolves to a Zenodo record with the paper PDF and a versioned snapshot. Update entries to point to the journal version (IEEE J-BHI / Elsevier BSPC) when accepted.
 
 ## References
 

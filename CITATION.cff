@@ -1,24 +1,41 @@
 cff-version: 1.2.0
-title: "rppg-selective-arrhythmia: Selective prediction with calibrated uncertainty for contactless arrhythmia detection from facial video"
-message: "If this repository contributes to your research, please cite it as below."
+title: "rppg-selective-arrhythmia: Learned Class-Conditional Signal-Quality Deferral for selective rPPG-based atrial fibrillation screening"
+message: "If this repository contributes to your research, please cite the Zenodo preprint and the GitHub source."
 type: software
 authors:
   - family-names: "Khan"
     given-names: "Muhammad Shahnawaz"
     orcid: "https://orcid.org/0009-0007-4055-6563"
+    affiliation: "Independent Researcher, Lahore, Pakistan"
 repository-code: "https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
 url: "https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
 abstract: >-
-  Benchmarks five uncertainty-quantification methods (MC Dropout,
-  Deep Ensembles, Evidential Deep Learning, SNGP, and Conformal
-  Prediction) on remote-photoplethysmography (rPPG) signals from
-  facial video, with the goal of a clinically deployable atrial-
-  fibrillation screen that defers to a clinician when its
-  confidence is insufficient. Provides classical (CHROM, POS) and
-  learned (PhysNet, planned) rPPG extractors, signal-quality
-  estimation, a CNN1D + Transformer classifier, five UQ heads, and
-  selective-evaluation utilities including risk-coverage curves,
-  AURC, ECE, and Brier score.
+  Selective-prediction methodology for contactless atrial-
+  fibrillation (AF) screening from remote-photoplethysmography
+  (rPPG) signals derived from face video. Introduces Learned
+  Class-Conditional Signal-Quality Deferral (LW-CCSD), a post-hoc
+  model-agnostic deferral policy that learns per-predicted-class
+  weights combining model confidence with spectral signal-to-noise
+  ratio, subject to a configurable per-class recall floor.
+  On a 45,064-segment synthetic-rPPG benchmark derived from the
+  PhysioNet/CinC 2017 AF Challenge, LW-CCSD achieves a tunable
+  Pareto frontier between selective accuracy and AF-recall safety
+  (+4.1 percent AURC at essentially zero AF-recall cost, scaling
+  to +15.6 percent AURC at 8 percentage-point AF cost). A Clopper-
+  Pearson conformal extension provides finite-sample distribution-
+  free coverage guarantees with essentially zero operational
+  penalty (identical operating point at 90 percent confidence;
+  0.6 percent relative AURC cost at 95 percent confidence).
+  LW-CCSD applied to a single-pass deterministic classifier
+  achieves better selective performance than a five-model deep
+  ensemble without LW-CCSD, suggesting the method can substitute
+  for compute-expensive ensembling in deployed clinical screens.
+  Cross-UQ replication (deterministic, MC Dropout, deep ensembles)
+  and orthogonal SNR-tertile and HR-tertile stratifications confirm
+  the cross-regime mechanism. Repository includes the full
+  reproducibility chain: pipeline, configurations, trained
+  checkpoints, per-method evaluation artefacts, paper LaTeX and
+  HTML sources, and figure generation scripts.
 keywords:
   - rPPG
   - remote photoplethysmography
@@ -30,16 +47,26 @@ keywords:
   - MC dropout
   - calibration
   - contactless cardiac screening
+  - signal quality
+  - deferral policies
+  - Clopper-Pearson lower bound
 license: MIT
-version: "0.1.0"
-date-released: "2026-06-18"
+version: "1.2.0"
+date-released: "2026-06-21"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.20776347"
+    description: "Zenodo preprint, v1.0.0 snapshot."
 preferred-citation:
-  type: software
-  title: "rppg-selective-arrhythmia: Selective prediction with calibrated uncertainty for contactless arrhythmia detection from facial video"
+  type: article
+  title: "Learned Class-Conditional Signal-Quality Deferral for Selective rPPG-Based Atrial Fibrillation Screening"
   authors:
     - family-names: "Khan"
       given-names: "Muhammad Shahnawaz"
       orcid: "https://orcid.org/0009-0007-4055-6563"
+      affiliation: "Independent Researcher, Lahore, Pakistan"
   year: 2026
-  url: "https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
-  notes: "Work in progress."
+  month: 6
+  doi: "10.5281/zenodo.20776347"
+  url: "https://zenodo.org/records/20776347"
+  notes: "Preprint hosted on Zenodo; code and reproducibility artefacts at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
