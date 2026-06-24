@@ -14,7 +14,7 @@
     <hr class="cover-divider">
     <div class="cover-author">Muhammad Shahnawaz Khan</div>
     <div class="cover-author-meta">Independent Researcher · Lahore, Pakistan · ORCID 0009-0007-4055-6563</div>
-    <div class="cover-date">June 2026 · v1.2.0</div>
+    <div class="cover-date">June 2026 · v1.3.0</div>
     <hr class="cover-divider">
     <div class="cover-bottom">
         <span class="label">Code &amp; Data:</span> github.com/ShahnawazKakarh/rppg-selective-arrhythmia<br>
@@ -224,10 +224,11 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <tr><td>Deterministic</td><td class="num">0.2367</td><td class="num best">0.2082</td><td class="num best">+12.1&thinsp;%</td><td class="num">&minus;0.045</td></tr>
 <tr><td>MC Dropout</td><td class="num">0.1980</td><td class="num">0.1899</td><td class="num">+4.1&thinsp;%</td><td class="num">&minus;0.029</td></tr>
 <tr><td>Ensembles (<em>M</em>&thinsp;=&thinsp;5, clean methodology)</td><td class="num">0.2066</td><td class="num">0.1928</td><td class="num">+6.7&thinsp;%</td><td class="num">&minus;0.032</td></tr>
+<tr><td class="best">EDL (single-pass Dirichlet)</td><td class="num best">0.1725</td><td class="num">0.1764</td><td class="num bad">&minus;2.3&thinsp;%</td><td class="num">&minus;0.013</td></tr>
 </tbody>
 </table>
 
-<p>The SQI-deferral gain scales inversely with the underlying UQ informativeness. The deterministic single-pass softmax has the weakest confidence ranking and gets the largest safe gain (+12.1&thinsp;% at &minus;0.045 AF cost). MC Dropout entropy is a stronger ranking and the gain is +4.1&thinsp;%. The clean five-model ensemble has the lowest UQ-only AURC of the three sources but still admits a +6.7&thinsp;% LW-CCSD margin on top &mdash; ensemble-averaged confidence and signal-quality information are not redundant. Section&thinsp;5.11 documents the ensemble methodology cleanup; the +6.7&thinsp;% margin here is larger than the +3.2&thinsp;% margin observed on the original coupled-seed ensemble, where split-induced variance was masking the UQ quality.</p>
+<p>The SQI-deferral gain scales inversely with the underlying UQ informativeness, and inverts when UQ already conditions on input signal quality. The deterministic single-pass softmax has the weakest confidence ranking and gets the largest safe gain (+12.1&thinsp;% at &minus;0.045 AF cost). MC Dropout entropy is a stronger ranking and the gain is +4.1&thinsp;%. The clean five-model ensemble has the lowest UQ-only AURC of the first three sources but still admits a +6.7&thinsp;% LW-CCSD margin on top. <strong>Evidential Deep Learning (EDL)</strong> takes the pattern to its limit: single-pass EDL has the best UQ-only AURC of all four methods (0.1725), and yet every LW-CCSD operating point is <em>worse</em> than UQ-only (&minus;2.3&thinsp;% at the safest floor). Section&thinsp;5.12 documents this in detail and explains the mechanism: EDL's Dirichlet evidence collapses on noisy inputs, which is the in-method realisation of the cross-regime SNR signal LW-CCSD provides externally. When UQ already absorbs signal-quality information, adding SNR externally is redundant.</p>
 <p>The practical consequence is striking. The deterministic-classifier LW-CCSD operating point at floor 0.55 achieves test AURC 0.1998. This is <em>below</em> the unaugmented clean-methodology ensemble UQ-only baseline of 0.2066 (Section&thinsp;5.11). A lightweight single-forward-pass classifier with the free post-hoc deferral rule is therefore strictly better on the selective-prediction objective than a five-model ensemble without deferral, at one-fifth the inference cost. We treat this as evidence that LW-CCSD is not merely an add-on to ensembling &mdash; in many practical regimes it is a viable substitute.</p>
 <p>The MIT-BIH replication (supplementary; see <code>docs/baselines/lw_ccsd_v1/mitbih/</code>) returned the trivial solution <strong>w</strong>*&thinsp;=&thinsp;(0,&thinsp;0,&thinsp;0), i.e.&nbsp;LW-CCSD reduced to UQ-only with no test-side change. The MIT-BIH classifier is degenerate (only 4 AF training records, 90&ndash;100&thinsp;% AF accuracy on test, 0&thinsp;% NSR accuracy at low coverage); under such conditions the SQI signal has nothing orthogonal to add and the constrained optimiser correctly returns the no-op. This is the method&rsquo;s graceful-degradation property: when SQI cannot help, LW-CCSD does not hurt.</p>
 
@@ -387,6 +388,50 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <p><strong>The split-induced variance was injecting noise into the calibration story.</strong> Under clean methodology, ECE drops from 0.064 to 0.052 (1.2-point absolute reduction) and test AURC drops from 0.2155 to 0.2066 (4.1&thinsp;% relative improvement) &mdash; both with no architectural change. The original ensemble&rsquo;s split-induced variance was systematically masking the UQ quality the architecture is actually capable of.</p>
 <p><strong>The LW-CCSD gain is larger under clean methodology, not smaller.</strong> Best safe operating point moves from +3.2&thinsp;% AURC (coupled) to +6.7&thinsp;% AURC (clean). Two complementary mechanisms account for this: (a) when ensemble members saw different splits, their per-segment uncertainty included a noise component due to which-split-this-was rather than how-uncertain-the-classifier-actually-is; under shared-split methodology the confidence ranking is closer to a clean estimate of within-record uncertainty, and SNR adds more discriminating cross-regime information on top; (b) better calibration means the LW-CCSD optimiser&rsquo;s val-AURC objective is closer to the test-AURC quantity it actually cares about, yielding operating points that generalise more tightly.</p>
 <p>Note that the deployment punchline strengthens under the clean ensemble baseline: deterministic + LW-CCSD (0.1998) still beats clean ensemble UQ-only (0.2066) by 3.3&thinsp;% relative AURC at one-fifth the inference compute. The substitution claim was not artifactual of the original ensemble&rsquo;s methodology weakness; it holds against the cleaner baseline.</p>
+
+<h2>5.12&nbsp;&nbsp;Evidential Deep Learning &mdash; in-method signal-quality absorption</h2>
+<p>We add Evidential Deep Learning (EDL) as a fourth UQ source. EDL replaces the softmax head with a non-negative evidence head, producing Dirichlet concentrations &alpha; = softplus(linear(h)) + 1 at the output. The classification loss is the EDL Type-II MSE with annealed KL regularisation (Sensoy <em>et&thinsp;al.</em> 2018), with KL weight annealed linearly from 0 to 1 over the first 10 epochs. Predictive probabilities are <em>p</em> = &alpha; / S where S = &sum;<sub>c</sub> &alpha;<sub>c</sub>; the Dirichlet uncertainty is <em>u</em> = K / S (high when total evidence is low). Confidence for selective evaluation is &minus;<em>u</em>. Architecture and training otherwise match the deterministic baseline.</p>
+
+<table class="keep-together">
+<caption><strong>Table 11.</strong> EDL on CinC test set (<em>n</em>&thinsp;=&thinsp;6,750). Single checkpoint, data_seed = 42, KL annealing 10 epochs.</caption>
+<thead>
+<tr><th>Method</th><th class="num">Test Acc</th><th class="num">ECE&thinsp;&darr;</th><th class="num">Brier&thinsp;&darr;</th><th class="num">UQ-only AURC</th></tr>
+</thead>
+<tbody>
+<tr><td>Deterministic</td><td class="num">0.686</td><td class="num">&mdash;</td><td class="num">0.440</td><td class="num">0.2367</td></tr>
+<tr><td>MC Dropout (<em>T</em>&thinsp;=&thinsp;30)</td><td class="num">0.715</td><td class="num">0.076</td><td class="num">0.418</td><td class="num">0.1980</td></tr>
+<tr><td>Clean Ensemble (<em>M</em>&thinsp;=&thinsp;5)</td><td class="num">0.692</td><td class="num">0.052</td><td class="num">0.440</td><td class="num">0.2066</td></tr>
+<tr><td class="best"><strong>EDL</strong></td><td class="num best">0.739</td><td class="num">0.137</td><td class="num">0.426</td><td class="num best">0.1725</td></tr>
+</tbody>
+</table>
+
+<p>EDL has the best UQ-only AURC and the best test accuracy of all four methods studied &mdash; a 16.6&thinsp;% relative AURC improvement over the clean ensemble at one-fifth the inference compute, and a 27.1&thinsp;% improvement over the deterministic baseline. EDL is also the worst-calibrated of the four (ECE 0.137 vs 0.052&ndash;0.076 for the others), consistent with the EDL literature: the Dirichlet evidence head trades calibration sharpness for ranking quality and explicit-uncertainty modelling. The high ECE does <em>not</em> degrade AURC &mdash; quite the opposite.</p>
+
+<table class="keep-together">
+<caption><strong>Table 12.</strong> LW-CCSD Pareto frontier on EDL. Val UQ-only AF recall at <em>c</em><sub>0</sub>&thinsp;=&thinsp;0.50 is 0.313, so floors &ge; 0.35 are infeasible. Every feasible operating point sits <em>above</em> UQ-only on test AURC &mdash; LW-CCSD does not improve EDL's selective ranking.</caption>
+<thead>
+<tr><th>Val AF floor</th><th><strong>w</strong>* (NSR/AF/Other)</th><th class="num">Test AURC</th><th class="num">&Delta; vs UQ</th><th class="num">Test AF@0.5</th><th class="num">&Delta; AF</th></tr>
+</thead>
+<tbody>
+<tr><td>0.20</td><td>0.0 / 0.5 / 0.4</td><td class="num">0.1777</td><td class="num bad">&minus;3.02&thinsp;%</td><td class="num">0.331</td><td class="num">&minus;0.068</td></tr>
+<tr><td>0.25</td><td>0.0 / 0.4 / 0.4</td><td class="num">0.1770</td><td class="num bad">&minus;2.65&thinsp;%</td><td class="num">0.367</td><td class="num">&minus;0.032</td></tr>
+<tr><td>0.28</td><td>0.0 / 0.4 / 0.4</td><td class="num">0.1770</td><td class="num bad">&minus;2.65&thinsp;%</td><td class="num">0.367</td><td class="num">&minus;0.032</td></tr>
+<tr><td class="best">0.30</td><td class="best">0.0 / 0.3 / 0.4</td><td class="num best">0.1764</td><td class="num bad">&minus;2.28&thinsp;%</td><td class="num">0.386</td><td class="num">&minus;0.013</td></tr>
+<tr><td>UQ-only baseline</td><td>&mdash;</td><td class="num best">0.1725</td><td class="num">&mdash;</td><td class="num">0.399</td><td class="num">0.000</td></tr>
+</tbody>
+</table>
+
+<p><strong>Mechanism &mdash; why LW-CCSD does not help EDL.</strong> Spectral SNR provides cross-regime information that the model's confidence does not have access to: a noisy waveform produces a low SNR independently of what the classifier thinks. For deterministic, MC Dropout, and ensemble confidences this signal is genuinely orthogonal to the model output, which is why LW-CCSD recovers margin on all three. EDL is different: under the EDL training objective, an input that lacks a clean cardiac rhythm produces <em>low evidence on every class</em>, hence low total &alpha;, hence high Dirichlet uncertainty <em>u</em> = K/S. EDL has <em>learned in-method</em> exactly the cross-regime ranking that SNR would supply externally. Mixing the two ranks is therefore double-counting the same content, and the rank-noise component of the externally-computed SNR rank now reduces selective quality rather than adding to it.</p>
+
+<p>This is a falsifiable mechanism prediction. Any UQ method that conditions on input signal quality directly &mdash; SNGP via its distance-aware feature norm, evidential variants, or learned-extractor models that propagate uncertainty from the rPPG stage forward &mdash; should similarly admit no LW-CCSD margin. The remaining three families (post-hoc softmax confidence, stochastic-pass disagreement, ensemble disagreement) all leave SNR-content unmodelled and therefore admit margin.</p>
+
+<p><strong>Deployment update.</strong> The recommendation chain across compute budgets now reads:</p>
+<ul>
+<li><strong>Smallest budget:</strong> deterministic + LW-CCSD &mdash; test AURC 0.1998. Lightweight single-pass inference plus the free post-hoc deferral rule.</li>
+<li><strong>Standard budget:</strong> single-pass EDL &mdash; test AURC 0.1725. Same inference cost as deterministic, one additional training pass with the EDL loss. Best AURC of all four methods and best test accuracy.</li>
+<li><strong>Maximum budget:</strong> clean ensemble + LW-CCSD &mdash; test AURC 0.1928. Five-model inference plus deferral.</li>
+</ul>
+<p>EDL at the standard budget dominates both the lightweight and the maximum configurations on AURC, at single-pass inference cost. For clinical-screen deployment the simplest defensible choice is therefore EDL alone &mdash; no auxiliary feature, no per-class weights, no ensemble.</p>
 
 <!-- ================= DISCUSSION ================= -->
 <h1><span class="section-num">6</span>Discussion</h1>

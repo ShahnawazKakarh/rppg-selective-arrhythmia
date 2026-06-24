@@ -31,7 +31,9 @@ import torch
 from torch.utils.data import DataLoader, Subset
 
 from rppg_sa.models.cnn1d_transformer import CNN1DTransformer
+from rppg_sa.models.edl_classifier import CNN1DTransformerEDL
 from rppg_sa.uncertainty.ensembles import ensemble_predict
+from rppg_sa.uncertainty.evidential import edl_uncertainty
 from rppg_sa.uncertainty.mc_dropout import mc_dropout_predict
 from rppg_sa.utils.config import load_config
 
@@ -107,8 +109,18 @@ def _build_val_loader(cfg: dict[str, Any], run_dir: Path, batch_size: int = 64):
     return loader, ds.LABEL_NAMES, [ds.signals[i] for i in val_idx]
 
 
-def _build_model(cfg: dict[str, Any], device: torch.device) -> CNN1DTransformer:
+def _build_model(cfg: dict[str, Any], device: torch.device) -> torch.nn.Module:
     mcfg = cfg["classifier"]
+    head_type = mcfg.get("head", "softmax")
+    if head_type == "evidential":
+        return CNN1DTransformerEDL(
+            in_channels=int(mcfg["in_channels"]),
+            num_classes=int(mcfg["num_classes"]),
+            conv_channels=tuple(mcfg["conv_channels"]),
+            transformer_layers=int(mcfg["transformer_layers"]),
+            transformer_heads=int(mcfg["transformer_heads"]),
+            dropout=float(mcfg["dropout"]),
+        ).to(device)
     return CNN1DTransformer(
         in_channels=int(mcfg["in_channels"]),
         num_classes=int(mcfg["num_classes"]),
@@ -166,6 +178,25 @@ def _forward_ensemble(models, loader, device):
     )
 
 
+@torch.no_grad()
+def _forward_evidential(model, loader, device):
+    """EDL forward pass on val. Returns probs, labels, dirichlet uncertainty."""
+    model.eval()
+    probs_list, unc_list, labels = [], [], []
+    for batch in loader:
+        x = batch["signal"].to(device)
+        alpha = model(x)
+        probs, u = edl_uncertainty(alpha)
+        probs_list.append(probs.cpu().numpy())
+        unc_list.append(u.cpu().numpy())
+        labels.extend(batch["label"].tolist())
+    return (
+        np.concatenate(probs_list, axis=0),
+        np.array(labels, dtype=np.int64),
+        np.concatenate(unc_list, axis=0),
+    )
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--config", type=Path, required=True)
@@ -173,14 +204,14 @@ def main() -> None:
                    help="Single checkpoint (deterministic, mc_dropout).")
     p.add_argument("--ensemble-checkpoints", type=Path, nargs="+", default=None,
                    help="M checkpoints for --uq ensembles.")
-    p.add_argument("--uq", choices=["deterministic", "mc_dropout", "ensembles"],
+    p.add_argument("--uq", choices=["deterministic", "mc_dropout", "ensembles", "evidential"],
                    default="deterministic")
     p.add_argument("--mc-samples", type=int, default=30)
     p.add_argument("--out-dir-name", type=str, default=None,
                    help="Override the output subdir name (default eval_val_<uq>).")
     args = p.parse_args()
 
-    if args.uq in ("deterministic", "mc_dropout") and args.checkpoint is None:
+    if args.uq in ("deterministic", "mc_dropout", "evidential") and args.checkpoint is None:
         raise SystemExit(f"--uq {args.uq} requires --checkpoint")
     if args.uq == "ensembles" and not args.ensemble_checkpoints:
         raise SystemExit("--uq ensembles requires --ensemble-checkpoints")
@@ -207,6 +238,18 @@ def main() -> None:
         probs, labels, entropy = _forward_mc_dropout(model, loader, device, T=args.mc_samples)
         # eval_selective writes -entropy as confidence for mc_dropout; mirror that here.
         confidence = -entropy
+    elif args.uq == "evidential":
+        cfg["classifier"]["head"] = "evidential"
+        model = _build_model(cfg, device)
+        _load_checkpoint(model, args.checkpoint, device)
+        print(f"Loaded EDL checkpoint: {args.checkpoint}")
+        probs, labels, uncertainty = _forward_evidential(model, loader, device)
+        # Confidence: lower Dirichlet uncertainty = higher confidence.
+        confidence = -uncertainty
+        # For the predictions.csv 'entropy' column (consumed downstream by
+        # LW-CCSD as the same-shape confidence rank), use predictive entropy.
+        eps = 1e-12
+        entropy = -np.sum(probs * np.log(probs + eps), axis=1)
     else:  # ensembles
         models = []
         for ckpt in args.ensemble_checkpoints:

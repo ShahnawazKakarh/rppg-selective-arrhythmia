@@ -32,6 +32,7 @@ import torch
 from torch.utils.data import DataLoader, Subset
 
 from rppg_sa.models.cnn1d_transformer import CNN1DTransformer
+from rppg_sa.models.edl_classifier import CNN1DTransformerEDL
 from rppg_sa.selective.metrics import (
     brier_score,
     expected_calibration_error,
@@ -45,6 +46,7 @@ from rppg_sa.uncertainty.conformal import (
     set_sizes,
 )
 from rppg_sa.uncertainty.ensembles import ensemble_predict
+from rppg_sa.uncertainty.evidential import edl_uncertainty
 from rppg_sa.uncertainty.mc_dropout import mc_dropout_predict
 from rppg_sa.utils.config import load_config
 from rppg_sa.utils.seed import set_seed
@@ -132,22 +134,45 @@ def _build_loaders(cfg: dict[str, Any], run_dir: Path, batch_size: int = 64):
 # ----------------------------------------------------------------------
 # model loading
 # ----------------------------------------------------------------------
-def _build_model(cfg: dict[str, Any], device: torch.device) -> CNN1DTransformer:
+def _build_model(cfg: dict[str, Any], device: torch.device) -> torch.nn.Module:
     mcfg = cfg["classifier"]
-    model = CNN1DTransformer(
-        in_channels=int(mcfg["in_channels"]),
-        num_classes=int(mcfg["num_classes"]),
-        conv_channels=tuple(mcfg["conv_channels"]),
-        transformer_layers=int(mcfg["transformer_layers"]),
-        transformer_heads=int(mcfg["transformer_heads"]),
-        dropout=float(mcfg["dropout"]),
-    ).to(device)
+    head_type = mcfg.get("head", "softmax")
+    if head_type == "evidential":
+        model = CNN1DTransformerEDL(
+            in_channels=int(mcfg["in_channels"]),
+            num_classes=int(mcfg["num_classes"]),
+            conv_channels=tuple(mcfg["conv_channels"]),
+            transformer_layers=int(mcfg["transformer_layers"]),
+            transformer_heads=int(mcfg["transformer_heads"]),
+            dropout=float(mcfg["dropout"]),
+        ).to(device)
+    else:
+        model = CNN1DTransformer(
+            in_channels=int(mcfg["in_channels"]),
+            num_classes=int(mcfg["num_classes"]),
+            conv_channels=tuple(mcfg["conv_channels"]),
+            transformer_layers=int(mcfg["transformer_layers"]),
+            transformer_heads=int(mcfg["transformer_heads"]),
+            dropout=float(mcfg["dropout"]),
+        ).to(device)
     return model
 
 
-def _load_checkpoint(model: CNN1DTransformer, path: Path, device: torch.device) -> None:
+def _load_checkpoint(model: torch.nn.Module, path: Path, device: torch.device) -> None:
     ckpt = torch.load(path, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model"] if "model" in ckpt else ckpt)
+    # If the checkpoint stored its cfg, sanity check the head matches the
+    # model we just built. Cheap guard against silent loader/head mismatches.
+    ckpt_cfg = ckpt.get("cfg") if isinstance(ckpt, dict) else None
+    if ckpt_cfg is not None:
+        ckpt_head = ckpt_cfg.get("classifier", {}).get("head", "softmax")
+        current_is_edl = isinstance(model, CNN1DTransformerEDL)
+        if (ckpt_head == "evidential") != current_is_edl:
+            raise RuntimeError(
+                f"Checkpoint head ({ckpt_head!r}) does not match constructed model "
+                f"({'evidential' if current_is_edl else 'softmax'!r}). "
+                f"Ensure the eval config's classifier.head matches the checkpoint."
+            )
 
 
 # ----------------------------------------------------------------------
@@ -194,6 +219,28 @@ def _forward_deterministic(model, loader, device):
         probs_list.append(torch.softmax(logits, dim=-1).cpu().numpy())
         labels.extend(batch["label"].tolist())
     return np.concatenate(probs_list, axis=0), np.array(labels, dtype=np.int64)
+
+
+@torch.no_grad()
+def _forward_evidential(model, loader, device):
+    """EDL forward pass: alpha -> (probs, uncertainty u = K/S).
+
+    Returns probs (B, K), uncertainty (B,), and labels.
+    """
+    model.eval()
+    probs_list, unc_list, labels = [], [], []
+    for batch in loader:
+        x = batch["signal"].to(device)
+        alpha = model(x)
+        probs, u = edl_uncertainty(alpha)
+        probs_list.append(probs.cpu().numpy())
+        unc_list.append(u.cpu().numpy())
+        labels.extend(batch["label"].tolist())
+    return (
+        np.concatenate(probs_list, axis=0),
+        np.concatenate(unc_list, axis=0),
+        np.array(labels, dtype=np.int64),
+    )
 
 
 # ----------------------------------------------------------------------
@@ -273,7 +320,7 @@ def main() -> None:
                         help="Single checkpoint (mc_dropout, conformal).")
     parser.add_argument("--ensemble-checkpoints", type=Path, nargs="+", default=None,
                         help="M checkpoints for --uq ensembles.")
-    parser.add_argument("--uq", choices=["mc_dropout", "ensembles", "conformal"], default="mc_dropout")
+    parser.add_argument("--uq", choices=["mc_dropout", "ensembles", "conformal", "evidential"], default="mc_dropout")
     parser.add_argument("--mc-samples", type=int, default=30)
     parser.add_argument("--alpha", type=float, default=0.1,
                         help="Conformal miscoverage level; 0.1 → 90% sets.")
@@ -287,7 +334,7 @@ def main() -> None:
     print(f"Device: {device}")
 
     # ---------- Validate args ----------
-    if args.uq in ("mc_dropout", "conformal") and args.checkpoint is None:
+    if args.uq in ("mc_dropout", "conformal", "evidential") and args.checkpoint is None:
         raise ValueError(f"--uq {args.uq} requires --checkpoint")
     if args.uq == "ensembles" and not args.ensemble_checkpoints:
         raise ValueError("--uq ensembles requires --ensemble-checkpoints")
@@ -325,7 +372,7 @@ def main() -> None:
         method_meta = {"ensemble_size": len(models),
                        "checkpoints": [str(p) for p in args.ensemble_checkpoints]}
 
-    else:  # conformal
+    elif args.uq == "conformal":
         model = _build_model(cfg, device)
         _load_checkpoint(model, args.checkpoint, device)
         print(f"Loaded checkpoint: {args.checkpoint}")
@@ -350,6 +397,27 @@ def main() -> None:
         }
         print(f"Conformal: q_hat={q_hat:.4f}  empirical_coverage={cov:.4f}  "
               f"mean_set_size={sizes.mean():.3f}")
+
+    elif args.uq == "evidential":
+        # Force config to advertise the head before model construction so
+        # _build_model returns CNN1DTransformerEDL.
+        cfg["classifier"]["head"] = "evidential"
+        model = _build_model(cfg, device)
+        _load_checkpoint(model, args.checkpoint, device)
+        print(f"Loaded EDL checkpoint: {args.checkpoint}")
+        probs, uncertainty, labels = _forward_evidential(model, test_loader, device)
+        # Confidence: lower Dirichlet uncertainty = higher confidence.
+        confidences = -uncertainty
+        # Compute predictive entropy from p = alpha / S for parity with other
+        # UQ methods (used in per-class report and ECE binning).
+        eps = 1e-12
+        entropy = -np.sum(probs * np.log(probs + eps), axis=1)
+        mi = None
+        extra = {"entropy": entropy, "dirichlet_uncertainty": uncertainty}
+        method_meta = {"uq_kind": "edl"}
+
+    else:
+        raise ValueError(f"Unsupported --uq value: {args.uq}")
 
     # ---------- Metrics (common to all UQ methods) ----------
     preds = probs.argmax(axis=1)

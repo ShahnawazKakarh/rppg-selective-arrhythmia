@@ -9,7 +9,7 @@
 
 This repository introduces and benchmarks **LW-CCSD**, a post-hoc model-agnostic deferral policy for selective prediction in contactless atrial-fibrillation (AF) screening from remote photoplethysmography (rPPG) signals. The method learns per-predicted-class quality weights combining model confidence with spectral signal-to-noise ratio, subject to a configurable per-class recall floor, and produces a tunable Pareto frontier between selective accuracy and clinical AF-recall safety.
 
-> **Status — v1.2.0 preprint released on Zenodo and SSRN.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.2.0.pdf`](paper/lw-ccsd-rppg-af-v1.2.0.pdf). Zenodo v1.2.0: [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623). SSRN: [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878). Initial Zenodo release v1.0.0 (superseded): [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). See [Findings](#findings) for the empirical contribution and [Roadmap](#roadmap) for what is still outstanding.
+> **Status — v1.3.0 paper draft.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.3.0.pdf`](paper/lw-ccsd-rppg-af-v1.3.0.pdf). Zenodo v1.2.0: [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623). SSRN: [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878). Initial Zenodo release v1.0.0 (superseded): [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). v1.3.0 adds Evidential Deep Learning as a 4th UQ source and the in-method signal-quality-absorption finding (Section 5.12). See [Findings](#findings) and [Roadmap](#roadmap).
 
 ---
 
@@ -315,7 +315,7 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] **HR-stratified evaluation** — 76 % of AF concentrates in the high-HR (tachycardia) bin; AURC improves in every HR tertile; the cross-regime pattern is orthogonal to HR.
 - [x] **Cross-UQ stratification** — SNR-tertile analysis on MC Dropout and Deep Ensembles. Unifying mechanism statement holds across all three UQ sources.
 - [x] **Continuous-w optimization (Nelder–Mead)** — confirms grid optimum is near-optimal; Pareto-frontier non-monotonicities are discretisation-and-generalisation, not optimisation, artifacts.
-- [x] **Paper draft** — 7 sections, 10 tables, 3 figures, complete prose. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.2.0.pdf`. IEEE LaTeX source at `paper/main.tex` for arXiv submission.
+- [x] **Paper draft** — 7 sections, 12 tables, 3 figures, complete prose. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.3.0.pdf`. IEEE LaTeX source at `paper/main.tex` for arXiv submission.
 - [x] **Clean ensemble methodology** — `data_seed` and `model_seed` decoupled in `scripts/train_classifier.py`; ensemble retrained with shared split + independent inits. Clean methodology improves UQ quality (ECE 0.064→ 0.052, AURC 0.2155→ 0.2066) and the LW-CCSD margin (+3.2 % → +6.7 %).
 - [x] **Zenodo preprint v1.0.0** — [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347).
 - [x] **Zenodo preprint v1.2.0** — [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623) (current, supersedes v1.0.0).
@@ -330,9 +330,9 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [ ] **IEEE BSPC or J-BHI submission** after preprints are live.
 
 ### Methodology extensions (paper v2.0)
-- [ ] **Bonferroni-corrected joint conformal coverage** — P(all per-class recalls ≥ floor) ≥ 1 − Cα; tighter family-wise guarantee.
-- [ ] **Evidential Deep Learning training-time integration** — 4th UQ method in the comparison table.
-- [ ] **SNGP** — spectral-normalized backbone + random-feature GP head (5th UQ method).
+- [ ] **Even tighter joint conformal bounds** — direct multivariate-beta tail bound on the joint distribution of recalls to close the remaining 1.75 % gap left after Holm step-down.
+- [ ] **EDL ensemble (3–5 members)** — variance characterisation, KL annealing sensitivity (5 / 15 / 25 epochs), conformal extension on EDL.
+- [ ] **SNGP** — spectral-normalized backbone + random-feature GP head (5th UQ method). The EDL mechanism prediction in Section 5.12 expects SNGP to also admit no LW-CCSD margin since its distance-aware feature norm conditions on input signal quality. Falsification target.
 - [ ] **Real demographic stratification** — when OBF / MAHNOB-HCI metadata becomes available (current proxy: SNR and HR tertiles).
 
 ### Data scaling (paper v2.0)
@@ -361,7 +361,7 @@ If this repository contributes to your research, please cite the Zenodo preprint
   publisher    = {Zenodo},
   doi          = {10.5281/zenodo.20818623},
   url          = {https://zenodo.org/records/20818623},
-  note         = {Preprint v1.2.0. Also available on SSRN (abstract 6971878). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
+  note         = {Preprint v1.3.0 (codebase); v1.2.0 latest Zenodo snapshot. Also available on SSRN (abstract 6971878). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
 }
 ```
 

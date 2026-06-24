@@ -25,6 +25,8 @@ from torch import nn
 from torch.utils.data import DataLoader, Subset
 
 from rppg_sa.models.cnn1d_transformer import CNN1DTransformer
+from rppg_sa.models.edl_classifier import CNN1DTransformerEDL
+from rppg_sa.uncertainty.evidential import edl_mse_loss
 from rppg_sa.utils.config import load_config
 from rppg_sa.utils.seed import set_seed
 
@@ -164,8 +166,12 @@ def _epoch_loop(
     model: nn.Module,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer | None,
-    criterion: nn.Module,
+    criterion: nn.Module | None,
     device: torch.device,
+    head_type: str = "softmax",
+    edl_epoch: int = 0,
+    edl_annealing_steps: int = 10,
+    edl_num_classes: int = 3,
 ) -> dict[str, float]:
     train_mode = optimizer is not None
     model.train(train_mode)
@@ -177,15 +183,26 @@ def _epoch_loop(
         x = batch["signal"].to(device)
         y = batch["label"].to(device)
         with torch.set_grad_enabled(train_mode):
-            logits = model(x)
-            loss = criterion(logits, y)
+            out = model(x)
+            if head_type == "evidential":
+                # `out` is alpha; predictions are argmax of expected probabilities
+                # p = alpha / S, equivalent to argmax of alpha.
+                loss = edl_mse_loss(
+                    out, y, edl_num_classes,
+                    epoch=edl_epoch, annealing_steps=edl_annealing_steps,
+                )
+                preds = out.argmax(-1)
+            else:
+                assert criterion is not None, "softmax head requires criterion"
+                loss = criterion(out, y)
+                preds = out.argmax(-1)
             if train_mode:
                 optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
         losses.append(float(loss.detach().cpu()))
-        all_preds.extend(logits.argmax(-1).detach().cpu().tolist())
+        all_preds.extend(preds.detach().cpu().tolist())
         all_labels.extend(y.detach().cpu().tolist())
 
     return {
@@ -208,6 +225,11 @@ def main() -> None:
                              "Differs across ensemble members.")
     parser.add_argument("--name-suffix", type=str, default="",
                         help="Append to experiment.name; lands in runs/<name><suffix>/.")
+    parser.add_argument("--head", type=str, default=None, choices=["softmax", "evidential"],
+                        help="Override classifier.head (default reads from config; "
+                             "falls back to 'softmax').")
+    parser.add_argument("--edl-annealing-steps", type=int, default=10,
+                        help="Epochs to anneal the EDL KL weight from 0 to 1.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -255,19 +277,38 @@ def main() -> None:
 
     # ---------- Model ----------
     mcfg = cfg["classifier"]
-    model = CNN1DTransformer(
-        in_channels=int(mcfg["in_channels"]),
-        num_classes=int(mcfg["num_classes"]),
-        conv_channels=tuple(mcfg["conv_channels"]),
-        transformer_layers=int(mcfg["transformer_layers"]),
-        transformer_heads=int(mcfg["transformer_heads"]),
-        dropout=float(mcfg["dropout"]),
-    ).to(device)
+    head_type = args.head if args.head is not None else mcfg.get("head", "softmax")
+    num_classes = int(mcfg["num_classes"])
+    if head_type == "evidential":
+        model = CNN1DTransformerEDL(
+            in_channels=int(mcfg["in_channels"]),
+            num_classes=num_classes,
+            conv_channels=tuple(mcfg["conv_channels"]),
+            transformer_layers=int(mcfg["transformer_layers"]),
+            transformer_heads=int(mcfg["transformer_heads"]),
+            dropout=float(mcfg["dropout"]),
+        ).to(device)
+        print(f"Head: evidential (Dirichlet, EDL); KL annealing over {args.edl_annealing_steps} epochs")
+    else:
+        model = CNN1DTransformer(
+            in_channels=int(mcfg["in_channels"]),
+            num_classes=num_classes,
+            conv_channels=tuple(mcfg["conv_channels"]),
+            transformer_layers=int(mcfg["transformer_layers"]),
+            transformer_heads=int(mcfg["transformer_heads"]),
+            dropout=float(mcfg["dropout"]),
+        ).to(device)
+        print("Head: softmax (cross-entropy)")
+    cfg["classifier"]["head"] = head_type
 
     # ---------- Loss / optimizer ----------
     train_labels = [full_ds.labels[i] for i in train_idx]
-    if cfg["training"].get("class_weighted_loss", False):
-        weights = _class_weights(train_labels, int(mcfg["num_classes"])).to(device)
+    if head_type == "evidential":
+        # EDL uses its own loss (edl_mse_loss); CE criterion not needed.
+        criterion = None
+        print("Loss: EDL Type-II MSE + annealed KL (class weights ignored under EDL)")
+    elif cfg["training"].get("class_weighted_loss", False):
+        weights = _class_weights(train_labels, num_classes).to(device)
         criterion = nn.CrossEntropyLoss(weight=weights)
         print(f"Class weights: {weights.cpu().tolist()}")
     else:
@@ -303,8 +344,18 @@ def main() -> None:
 
     # ---------- Training ----------
     for epoch in range(1, epochs + 1):
-        train_metrics = _epoch_loop(model, train_loader, optimizer, criterion, device)
-        val_metrics = _epoch_loop(model, val_loader, None, criterion, device)
+        train_metrics = _epoch_loop(
+            model, train_loader, optimizer, criterion, device,
+            head_type=head_type, edl_epoch=epoch,
+            edl_annealing_steps=args.edl_annealing_steps,
+            edl_num_classes=num_classes,
+        )
+        val_metrics = _epoch_loop(
+            model, val_loader, None, criterion, device,
+            head_type=head_type, edl_epoch=epoch,
+            edl_annealing_steps=args.edl_annealing_steps,
+            edl_num_classes=num_classes,
+        )
         scheduler.step()
 
         row = {
