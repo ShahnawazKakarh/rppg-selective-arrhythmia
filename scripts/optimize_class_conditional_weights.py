@@ -219,6 +219,51 @@ def clopper_pearson_lower(n_correct: int, n_total: int, alpha: float) -> float:
     return float(_beta_dist.ppf(alpha, n_correct, n_total - n_correct + 1))
 
 
+def holm_feasible(
+    n_correct: np.ndarray, n_total: np.ndarray, floors: np.ndarray, alpha: float,
+) -> bool:
+    """Holm step-down family-wise feasibility test.
+
+    For each class c, computes the one-sided right-tail binomial p-value
+    p_c = P(X >= n_correct_c | X ~ Binomial(n_total_c, floor_c)) — small p
+    means observing this many correct predictions is inconsistent with the
+    null hypothesis r_c < floor_c, so the floor can be rejected.
+
+    Sorts the per-class p-values ascending and applies the Holm step-down
+    threshold alpha/(C-i+1) for i = 1,...,C. Returns True iff every class's
+    p-value falls within its Holm-adjusted threshold.
+
+    Under exchangeability of val and test, this controls the family-wise
+    error rate at level alpha: P(any true recall < floor | test passes) <=
+    alpha, i.e. P(all true recalls >= floor) >= 1 - alpha.
+
+    Holm is uniformly at least as powerful as Bonferroni: the smallest
+    p-value faces the same alpha/C threshold under both procedures, but
+    the larger p-values face progressively more lenient thresholds under
+    Holm. For our LW-CCSD optimisation this typically restores some of
+    the Pareto frontier that Bonferroni gives up.
+    """
+    C = len(n_correct)
+    pvals = np.zeros(C, dtype=np.float64)
+    for c in range(C):
+        n_c = int(n_total[c])
+        k_c = int(n_correct[c])
+        f_c = float(floors[c])
+        if n_c == 0 or f_c <= 0.0:
+            pvals[c] = 0.0
+            continue
+        # Right-tail binomial: P(X >= k_c | X ~ Binom(n_c, f_c))
+        # = 1 - P(X <= k_c - 1) = sf(k_c - 1)
+        from scipy.stats import binom
+        pvals[c] = float(binom.sf(k_c - 1, n_c, f_c))
+    order = np.argsort(pvals)
+    for i, c in enumerate(order):
+        threshold = alpha / float(C - i)
+        if pvals[c] > threshold:
+            return False
+    return True
+
+
 def aurc(score: np.ndarray, correct: np.ndarray) -> float:
     return float(risk_coverage_curve(score, correct).aurc)
 
@@ -232,16 +277,23 @@ def optimize_weights(
     grid: list[float], constraint_coverage: float,
     recall_floors: np.ndarray,
     conformal_alpha: float | None = None,
+    holm_joint: bool = False,
+    holm_alpha: float | None = None,
 ) -> dict[str, Any]:
     """Constrained grid search over per-class quality weights.
 
     Among all w in grid^num_classes satisfying val per-class recall >= floor
     at constraint_coverage, return the one that minimizes val AURC.
 
-    If conformal_alpha is given (e.g. 0.10), the floor is enforced on the
-    Clopper-Pearson one-sided lower confidence bound of val recall rather
-    than the point estimate, yielding P(true recall >= floor) >= 1 - alpha
-    under exchangeability.
+    Three feasibility modes:
+      - empirical (default): point-estimate per-class recall >= floor.
+      - conformal_alpha: Clopper-Pearson lower bound at level alpha enforces
+        a per-class probabilistic guarantee P(true recall >= floor) >= 1-alpha
+        for each class independently.
+      - holm_joint with holm_alpha: Holm step-down test on per-class binomial
+        p-values at level holm_alpha, enforcing the family-wise guarantee
+        P(all per-class recalls >= floor) >= 1 - holm_alpha. Strictly more
+        powerful than Bonferroni applied via conformal_alpha = alpha/C.
     """
     correct_val = (preds_val == labels_val).astype(np.float64)
     grid_arr = np.array(grid, dtype=np.float64)
@@ -255,7 +307,10 @@ def optimize_weights(
         rec, n_correct, n_total = per_class_recall_with_counts(
             score, labels_val, preds_val, constraint_coverage, num_classes
         )
-        if conformal_alpha is not None:
+        if holm_joint and holm_alpha is not None:
+            feasible = holm_feasible(n_correct, n_total, recall_floors, holm_alpha)
+            row_recall_field = None
+        elif conformal_alpha is not None:
             lcb = np.array([
                 clopper_pearson_lower(int(n_correct[c]), int(n_total[c]), conformal_alpha)
                 for c in range(num_classes)
@@ -270,7 +325,7 @@ def optimize_weights(
             "val_aurc": a,
             "val_recall_per_class": rec.tolist(),
             "val_recall_lcb_per_class": (
-                row_recall_field if conformal_alpha is not None else None
+                row_recall_field if conformal_alpha is not None and not holm_joint else None
             ),
             "feasible": feasible,
         })
@@ -280,7 +335,7 @@ def optimize_weights(
                 "val_aurc": a,
                 "val_recall_per_class": rec.tolist(),
                 "val_recall_lcb_per_class": (
-                    row_recall_field if conformal_alpha is not None else None
+                    row_recall_field if conformal_alpha is not None and not holm_joint else None
                 ),
             }
     return {"all_candidates": rows, "best": best}
@@ -314,6 +369,11 @@ def main() -> None:
                         "the num_classes per-class LCBs: each per-class LCB is computed at "
                         "alpha/C, yielding the family-wise guarantee "
                         "P(ALL per-class recalls >= floor) >= 1 - alpha under exchangeability.")
+    p.add_argument("--conformal-joint-holm", type=float, default=None,
+                   help="If set (e.g. 0.10), enforces the Holm step-down family-wise test on "
+                        "per-class binomial p-values. Strictly more powerful than Bonferroni at "
+                        "the same family-wise alpha: P(ALL per-class recalls >= floor) >= 1 - alpha. "
+                        "Cannot be combined with --conformal-alpha / --conformal-joint-bonferroni.")
     args = p.parse_args()
 
     cfg = load_config(args.config)
@@ -357,10 +417,19 @@ def main() -> None:
               f"{effective_alpha:.4f}; family-wise guarantee P(all recalls >= floor) >= "
               f"{1 - args.conformal_alpha:.2f}.")
 
+    if args.conformal_joint_holm is not None and (args.conformal_alpha is not None or args.conformal_joint_bonferroni):
+        raise SystemExit("--conformal-joint-holm is mutually exclusive with --conformal-alpha and --conformal-joint-bonferroni")
+
+    if args.conformal_joint_holm is not None:
+        print(f"Holm step-down family-wise coverage at alpha={args.conformal_joint_holm}; "
+              f"family-wise guarantee P(all recalls >= floor) >= {1 - args.conformal_joint_holm:.2f}.")
+
     opt = optimize_weights(
         conf_val, sq_val, preds_val, labels_val, num_classes,
         args.grid, args.constraint_coverage, floors,
         conformal_alpha=effective_alpha,
+        holm_joint=args.conformal_joint_holm is not None,
+        holm_alpha=args.conformal_joint_holm,
     )
     if opt["best"] is None:
         if args.conformal_alpha is not None:
@@ -434,6 +503,7 @@ def main() -> None:
         "conformal_alpha": args.conformal_alpha,
         "conformal_joint_bonferroni": args.conformal_joint_bonferroni,
         "conformal_alpha_effective_per_class": effective_alpha,
+        "conformal_joint_holm": args.conformal_joint_holm,
         "label_names": label_names,
         "w_star": dict(zip(label_names, w_star.tolist())),
         "val_best": opt["best"],
