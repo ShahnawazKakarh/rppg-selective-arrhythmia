@@ -2,13 +2,14 @@
 
 **Learned Class-Conditional Signal-Quality Deferral (LW-CCSD) for selective rPPG-based atrial fibrillation screening.**
 
-[![Zenodo DOI](https://img.shields.io/badge/Zenodo-10.5281%2Fzenodo.20776347-blue)](https://zenodo.org/records/20776347)
+[![Zenodo DOI](https://img.shields.io/badge/Zenodo-10.5281%2Fzenodo.20818623-blue)](https://zenodo.org/records/20818623)
+[![SSRN](https://img.shields.io/badge/SSRN-abstract%206971878-green)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0007--4055--6563-a6ce39)](https://orcid.org/0009-0007-4055-6563)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 This repository introduces and benchmarks **LW-CCSD**, a post-hoc model-agnostic deferral policy for selective prediction in contactless atrial-fibrillation (AF) screening from remote photoplethysmography (rPPG) signals. The method learns per-predicted-class quality weights combining model confidence with spectral signal-to-noise ratio, subject to a configurable per-class recall floor, and produces a tunable Pareto frontier between selective accuracy and clinical AF-recall safety.
 
-> **Status — v1.2.0 preprint released.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.2.0.pdf`](paper/lw-ccsd-rppg-af-v1.2.0.pdf). Preprint on Zenodo: [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). See [Findings](#findings) for the empirical contribution and [Roadmap](#roadmap) for what is still outstanding.
+> **Status — v1.2.0 preprint released on Zenodo and SSRN.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.2.0.pdf`](paper/lw-ccsd-rppg-af-v1.2.0.pdf). Zenodo v1.2.0: [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623). SSRN: [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878). Initial Zenodo release v1.0.0 (superseded): [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). See [Findings](#findings) for the empirical contribution and [Roadmap](#roadmap) for what is still outstanding.
 
 ---
 
@@ -317,8 +318,9 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] **Paper draft** — 7 sections, 10 tables, 3 figures, complete prose. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.2.0.pdf`. IEEE LaTeX source at `paper/main.tex` for arXiv submission.
 - [x] **Clean ensemble methodology** — `data_seed` and `model_seed` decoupled in `scripts/train_classifier.py`; ensemble retrained with shared split + independent inits. Clean methodology improves UQ quality (ECE 0.064→ 0.052, AURC 0.2155→ 0.2066) and the LW-CCSD margin (+3.2 % → +6.7 %).
 - [x] **Zenodo preprint v1.0.0** — [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347).
+- [x] **Zenodo preprint v1.2.0** — [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623) (current, supersedes v1.0.0).
+- [x] **SSRN preprint** — [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878), live on SSRN.
 - [x] **Preprints.org submission** — awaiting moderator approval.
-- [x] **SSRN submission** — awaiting review.
 - [x] **CITATION.cff** with ORCID + Zenodo DOI for GitHub's "Cite this repository" button.
 - [x] **Per-split class-coverage verification utility** — `scripts/verify_split_coverage.py` rebuilds the dataset and splits using the same code path as the trainer, asserts every class is present in every split with non-trivial count, and reports per-class fractions vs the global distribution. Wired into `tests/test_split_coverage.py` so the v0 failure mode (entire class missing from a split) is caught in CI before training starts.
 
@@ -357,9 +359,9 @@ If this repository contributes to your research, please cite the Zenodo preprint
   year         = {2026},
   month        = {jun},
   publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.20776347},
-  url          = {https://zenodo.org/records/20776347},
-  note         = {Preprint. Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
+  doi          = {10.5281/zenodo.20818623},
+  url          = {https://zenodo.org/records/20818623},
+  note         = {Preprint v1.2.0. Also available on SSRN (abstract 6971878). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
 }
 ```
 

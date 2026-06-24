@@ -55,8 +55,14 @@ version: "1.2.0"
 date-released: "2026-06-21"
 identifiers:
   - type: doi
+    value: "10.5281/zenodo.20818623"
+    description: "Zenodo preprint, v1.2.0 snapshot."
+  - type: doi
     value: "10.5281/zenodo.20776347"
-    description: "Zenodo preprint, v1.0.0 snapshot."
+    description: "Zenodo preprint, v1.0.0 initial release (superseded)."
+  - type: url
+    value: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878"
+    description: "SSRN preprint, v1.2.0."
 preferred-citation:
   type: article
   title: "Learned Class-Conditional Signal-Quality Deferral for Selective rPPG-Based Atrial Fibrillation Screening"
@@ -67,6 +73,6 @@ preferred-citation:
       affiliation: "Independent Researcher, Lahore, Pakistan"
   year: 2026
   month: 6
-  doi: "10.5281/zenodo.20776347"
-  url: "https://zenodo.org/records/20776347"
-  notes: "Preprint hosted on Zenodo; code and reproducibility artefacts at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
+  doi: "10.5281/zenodo.20818623"
+  url: "https://zenodo.org/records/20818623"
+  notes: "Preprint hosted on Zenodo (v1.2.0) and SSRN (abstract 6971878). Code and reproducibility artefacts at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
