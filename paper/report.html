@@ -14,7 +14,7 @@
     <hr class="cover-divider">
     <div class="cover-author">Muhammad Shahnawaz Khan</div>
     <div class="cover-author-meta">Independent Researcher · Lahore, Pakistan · ORCID 0009-0007-4055-6563</div>
-    <div class="cover-date">June 2026 · v1.5.0</div>
+    <div class="cover-date">June 2026 · v1.6.0</div>
     <hr class="cover-divider">
     <div class="cover-bottom">
         <span class="label">Code &amp; Data:</span> github.com/ShahnawazKakarh/rppg-selective-arrhythmia<br>
@@ -530,6 +530,29 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <li><strong>Maximum calibration (M&thinsp;=&thinsp;5 inference):</strong> clean softmax ensemble + LW-CCSD &mdash; test AURC 0.1928, test ECE 0.052.</li>
 </ul>
 <p>EDL ensemble is the new recommended choice when the deployment can afford the M&thinsp;=&thinsp;5 inference budget and AURC is the primary objective. The EDL mechanism makes its own LW-CCSD redundant at every scale.</p>
+
+<h2>5.15&nbsp;&nbsp;EDL under conformal coverage &mdash; robustness of the negative margin</h2>
+<p>Section&thinsp;5.12 establishes a negative LW-CCSD margin on single-checkpoint EDL using empirical-floor optimisation. Section&thinsp;5.14 confirms the margin survives ensembling. A reviewer may still ask: is the negative margin robust to the conformal coverage machinery? We replicate the Section&thinsp;5.6 per-class, Bonferroni, and Holm step-down conformal procedures on the EDL val predictions at family-wise (or per-class) <em>&alpha;</em>&thinsp;=&thinsp;0.10. Table&thinsp;17 reports the best safe operating point for each mode.</p>
+
+<table class="keep-together">
+<caption><strong>Table 17.</strong> EDL LW-CCSD under empirical, per-class conformal, Bonferroni joint, and Holm step-down joint feasibility tests. Single EDL checkpoint, CinC test set, constraint coverage 0.50. Family-wise (or per-class) <em>&alpha;</em>&thinsp;=&thinsp;0.10. Every conformal mode produces a negative test &Delta; AURC &mdash; the Section&thinsp;5.12 finding is robust to the strongest probabilistic guarantee.</caption>
+<thead>
+<tr><th>Mode</th><th>Floor</th><th><strong>w</strong>* (NSR/AF/Other)</th><th class="num">Test AURC</th><th class="num">&Delta; vs UQ-only</th><th class="num">Test AF@0.5</th><th class="num">&Delta; AF</th></tr>
+</thead>
+<tbody>
+<tr><td>Empirical floor (Section&thinsp;5.12)</td><td>0.30</td><td>0.0 / 0.3 / 0.4</td><td class="num">0.1764</td><td class="num bad">&minus;2.28&thinsp;%</td><td class="num">0.386</td><td class="num">&minus;0.013</td></tr>
+<tr><td class="best">Per-class conformal, <em>&alpha;</em>&thinsp;=&thinsp;0.10</td><td class="best">0.28</td><td class="best">0.0 / 0.2 / 0.4</td><td class="num best">0.1759</td><td class="num bad">&minus;2.00&thinsp;%</td><td class="num">0.394</td><td class="num">&minus;0.005</td></tr>
+<tr><td>Bonferroni joint, family-wise <em>&alpha;</em>&thinsp;=&thinsp;0.10</td><td>0.25</td><td>0.0 / 0.4 / 0.4</td><td class="num">0.1770</td><td class="num bad">&minus;2.65&thinsp;%</td><td class="num">0.367</td><td class="num">&minus;0.032</td></tr>
+<tr><td class="best">Holm step-down joint, family-wise <em>&alpha;</em>&thinsp;=&thinsp;0.10</td><td class="best">0.28</td><td class="best">0.0 / 0.2 / 0.4</td><td class="num best">0.1759</td><td class="num bad">&minus;2.00&thinsp;%</td><td class="num">0.394</td><td class="num">&minus;0.005</td></tr>
+<tr><td>UQ-only baseline (no LW-CCSD)</td><td>&mdash;</td><td>&mdash;</td><td class="num">0.1725</td><td class="num">&mdash;</td><td class="num">0.399</td><td class="num">0.000</td></tr>
+</tbody>
+</table>
+
+<p>Three findings.</p>
+<p><strong>The negative margin survives every conformal mode.</strong> Empirical &minus;2.28&thinsp;%, per-class conformal &minus;2.00&thinsp;%, Bonferroni &minus;2.65&thinsp;%, Holm &minus;2.00&thinsp;%. There is no conformal LCB tightening that flips the EDL frontier positive.</p>
+<p><strong>Per-class and Holm produce the identical optimum on EDL.</strong> Both at floor 0.28, <strong>w</strong>* = (0, 0.2, 0.4), AURC 0.1759, AF cost &minus;0.005. The EDL optimisation landscape near the AF-only axis is flat enough that the per-class &rarr; Holm LCB tightening does not shift <strong>w</strong>*. On the deterministic baseline Holm strictly dominates per-class on the joint statement (Section&thinsp;5.6); on EDL the two procedures coincide.</p>
+<p><strong>Bonferroni's conservatism replicates.</strong> Bonferroni picks a stricter feasible floor (0.25 vs 0.28), with AURC 0.0011 worse and AF cost six times larger. The Section&thinsp;5.6 result that Bonferroni is conservative for <em>C</em>&thinsp;=&thinsp;3 holds on EDL exactly as on the deterministic baseline.</p>
+<p>The headline EDL claim therefore reads, in its strongest form: EDL admits negative LW-CCSD margin under empirical optimisation (Section&thinsp;5.12), under ensembling (Section&thinsp;5.14), and under per-class conformal, Bonferroni joint, and Holm step-down joint coverage at family-wise <em>&alpha;</em>&thinsp;=&thinsp;0.10 (this section). The redundancy with external SNR is not a feature of any single optimisation or feasibility test &mdash; it is a structural property of EDL training.</p>
 
 <!-- ================= DISCUSSION ================= -->
 <h1><span class="section-num">6</span>Discussion</h1>
