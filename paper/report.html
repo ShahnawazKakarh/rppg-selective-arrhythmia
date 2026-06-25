@@ -14,7 +14,7 @@
     <hr class="cover-divider">
     <div class="cover-author">Muhammad Shahnawaz Khan</div>
     <div class="cover-author-meta">Independent Researcher · Lahore, Pakistan · ORCID 0009-0007-4055-6563</div>
-    <div class="cover-date">June 2026 · v1.6.0</div>
+    <div class="cover-date">June 2026 · v1.7.0</div>
     <hr class="cover-divider">
     <div class="cover-bottom">
         <span class="label">Code &amp; Data:</span> github.com/ShahnawazKakarh/rppg-selective-arrhythmia<br>
@@ -553,6 +553,30 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <p><strong>Per-class and Holm produce the identical optimum on EDL.</strong> Both at floor 0.28, <strong>w</strong>* = (0, 0.2, 0.4), AURC 0.1759, AF cost &minus;0.005. The EDL optimisation landscape near the AF-only axis is flat enough that the per-class &rarr; Holm LCB tightening does not shift <strong>w</strong>*. On the deterministic baseline Holm strictly dominates per-class on the joint statement (Section&thinsp;5.6); on EDL the two procedures coincide.</p>
 <p><strong>Bonferroni's conservatism replicates.</strong> Bonferroni picks a stricter feasible floor (0.25 vs 0.28), with AURC 0.0011 worse and AF cost six times larger. The Section&thinsp;5.6 result that Bonferroni is conservative for <em>C</em>&thinsp;=&thinsp;3 holds on EDL exactly as on the deterministic baseline.</p>
 <p>The headline EDL claim therefore reads, in its strongest form: EDL admits negative LW-CCSD margin under empirical optimisation (Section&thinsp;5.12), under ensembling (Section&thinsp;5.14), and under per-class conformal, Bonferroni joint, and Holm step-down joint coverage at family-wise <em>&alpha;</em>&thinsp;=&thinsp;0.10 (this section). The redundancy with external SNR is not a feature of any single optimisation or feasibility test &mdash; it is a structural property of EDL training.</p>
+
+<h2>5.16&nbsp;&nbsp;EDL KL annealing sensitivity &mdash; the property survives every schedule</h2>
+<p>Sections&thinsp;5.12, 5.14, and 5.15 use a fixed KL annealing schedule of 10 epochs. A reviewer may ask whether the no-LW-CCSD-margin property is sensitive to that choice. We re-train single-checkpoint EDL (shared data_seed&thinsp;=&thinsp;42, model_seed&thinsp;=&thinsp;1) at three additional schedules &mdash; 5, 15, and 25 annealing epochs &mdash; and report best-safe LW-CCSD AURC at each.</p>
+
+<table class="keep-together">
+<caption><strong>Table 18.</strong> EDL under four KL annealing schedules (5, 10, 15, 25 epochs). CinC test set, single checkpoint per schedule, constraint coverage 0.50. Every schedule produces a negative LW-CCSD margin.</caption>
+<thead>
+<tr><th>KL schedule</th><th class="num">Test Acc</th><th class="num">ECE&thinsp;&darr;</th><th class="num">Brier&thinsp;&darr;</th><th class="num">UQ-only AURC</th><th class="num">Best safe LW-CCSD</th><th class="num">&Delta; AURC</th><th class="num">AF cost</th></tr>
+</thead>
+<tbody>
+<tr><td>5 epochs</td><td class="num">0.7360</td><td class="num">0.133</td><td class="num">0.427</td><td class="num best">0.1680</td><td class="num">0.1709</td><td class="num bad">&minus;1.68&thinsp;%</td><td class="num">&minus;0.036</td></tr>
+<tr><td>10 epochs (Section&thinsp;5.12)</td><td class="num">0.7390</td><td class="num">0.138</td><td class="num">0.426</td><td class="num">0.1725</td><td class="num">0.1764</td><td class="num bad">&minus;2.28&thinsp;%</td><td class="num best">&minus;0.013</td></tr>
+<tr><td>15 epochs</td><td class="num best">0.7418</td><td class="num">0.139</td><td class="num">0.425</td><td class="num">0.1713</td><td class="num">0.1748</td><td class="num bad">&minus;2.07&thinsp;%</td><td class="num">&minus;0.039</td></tr>
+<tr><td>25 epochs</td><td class="num">0.7341</td><td class="num best">0.124</td><td class="num best">0.424</td><td class="num">0.1736</td><td class="num">0.1788</td><td class="num bad">&minus;2.99&thinsp;%</td><td class="num">&minus;0.021</td></tr>
+<tr><td>Mean&thinsp;&plusmn;&thinsp;std (n&thinsp;=&thinsp;4)</td><td class="num">0.7377&thinsp;&plusmn;&thinsp;0.0030</td><td class="num">0.134&thinsp;&plusmn;&thinsp;0.006</td><td class="num">0.426&thinsp;&plusmn;&thinsp;0.001</td><td class="num">0.1714&thinsp;&plusmn;&thinsp;0.0021</td><td class="num">0.1752&thinsp;&plusmn;&thinsp;0.0028</td><td class="num bad">&minus;2.26 %&thinsp;&plusmn;&thinsp;0.49&thinsp;%</td><td class="num">&mdash;</td></tr>
+</tbody>
+</table>
+
+<p>Three findings:</p>
+<p><strong>EDL is robust to KL annealing schedule.</strong> UQ-only AURC sits in [0.1680, 0.1736] &mdash; a 3.3&thinsp;% relative spread across a 5&times; variation in annealing length. Best AURC (0.1680) is at the shortest schedule; longest schedule (KL25) gives 0.1736 (3.3&thinsp;% worse). Best test accuracy is at KL15 (0.7418); best ECE and best Brier are at KL25 (0.124 and 0.424 respectively). No single schedule dominates on all metrics &mdash; a calibration / accuracy tradeoff exists but the AURC range is narrow.</p>
+<p><strong>The negative LW-CCSD margin holds across every schedule.</strong> Range [&minus;1.68&thinsp;%, &minus;2.99&thinsp;%], mean &minus;2.26&thinsp;% &plusmn; 0.49&thinsp;%. No annealing schedule produces a positive or near-zero margin. The shortest schedule (KL5) has the smallest negative margin (&minus;1.68&thinsp;%) but is still strictly negative.</p>
+<p><strong>Larger negative margin correlates with longer KL annealing.</strong> KL5&thinsp;&rarr;&thinsp;&minus;1.68&thinsp;%, KL10&thinsp;&rarr;&thinsp;&minus;2.28&thinsp;%, KL15&thinsp;&rarr;&thinsp;&minus;2.07&thinsp;%, KL25&thinsp;&rarr;&thinsp;&minus;2.99&thinsp;%. The relationship is not strictly monotonic (KL15 sits below KL10), but the overall direction is clear: longer annealing concentrates evidence more tightly on confident-classifiable inputs, deepening the in-method signal-quality measurement and pushing external SNR further into redundancy. Mechanistically consistent with Section&thinsp;5.12.</p>
+
+<p>The Section&thinsp;5.12 no-margin claim is therefore established at four independent levels: empirical optimisation (Section&thinsp;5.12), variance across initialisation seeds (Section&thinsp;5.14), conformal coverage at family-wise <em>&alpha;</em> = 0.10 (Section&thinsp;5.15), and KL annealing schedule (this section). There is no plausible null hypothesis remaining within the EDL training framework. The remaining open question is whether the property survives on the real face-video AF substrate; that is the v2.0 critical experiment.</p>
 
 <!-- ================= DISCUSSION ================= -->
 <h1><span class="section-num">6</span>Discussion</h1>
