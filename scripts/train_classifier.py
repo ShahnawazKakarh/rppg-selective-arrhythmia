@@ -26,6 +26,7 @@ from torch.utils.data import DataLoader, Subset
 
 from rppg_sa.models.cnn1d_transformer import CNN1DTransformer
 from rppg_sa.models.edl_classifier import CNN1DTransformerEDL
+from rppg_sa.models.sngp_classifier import CNN1DTransformerSNGP
 from rppg_sa.uncertainty.evidential import edl_mse_loss
 from rppg_sa.utils.config import load_config
 from rppg_sa.utils.seed import set_seed
@@ -172,6 +173,7 @@ def _epoch_loop(
     edl_epoch: int = 0,
     edl_annealing_steps: int = 10,
     edl_num_classes: int = 3,
+    sngp_accumulate: bool = False,
 ) -> dict[str, float]:
     train_mode = optimizer is not None
     model.train(train_mode)
@@ -192,6 +194,12 @@ def _epoch_loop(
                     epoch=edl_epoch, annealing_steps=edl_annealing_steps,
                 )
                 preds = out.argmax(-1)
+            elif head_type == "sngp":
+                # `out` is (mean_logits, variance|None) tuple.
+                mean_logits, _ = out
+                assert criterion is not None, "sngp head requires criterion"
+                loss = criterion(mean_logits, y)
+                preds = mean_logits.argmax(-1)
             else:
                 assert criterion is not None, "softmax head requires criterion"
                 loss = criterion(out, y)
@@ -201,6 +209,11 @@ def _epoch_loop(
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
+        # SNGP precision accumulation happens after the backward pass and
+        # only on training batches in the final epoch (sngp_accumulate=True).
+        if sngp_accumulate and head_type == "sngp":
+            with torch.no_grad():
+                model.accumulate(x, y)
         losses.append(float(loss.detach().cpu()))
         all_preds.extend(preds.detach().cpu().tolist())
         all_labels.extend(y.detach().cpu().tolist())
@@ -225,11 +238,19 @@ def main() -> None:
                              "Differs across ensemble members.")
     parser.add_argument("--name-suffix", type=str, default="",
                         help="Append to experiment.name; lands in runs/<name><suffix>/.")
-    parser.add_argument("--head", type=str, default=None, choices=["softmax", "evidential"],
+    parser.add_argument("--head", type=str, default=None, choices=["softmax", "evidential", "sngp"],
                         help="Override classifier.head (default reads from config; "
                              "falls back to 'softmax').")
     parser.add_argument("--edl-annealing-steps", type=int, default=10,
                         help="Epochs to anneal the EDL KL weight from 0 to 1.")
+    parser.add_argument("--sngp-rff-features", type=int, default=1024,
+                        help="RFF projection dimension for SNGP (default 1024).")
+    parser.add_argument("--sngp-rff-kernel-scale", type=float, default=1.0,
+                        help="RBF kernel lengthscale for SNGP RFF.")
+    parser.add_argument("--sngp-ridge", type=float, default=1e-3,
+                        help="L2 prior ridge on SNGP GP precision diag.")
+    parser.add_argument("--sngp-sn-coefficient", type=float, default=0.95,
+                        help="Spectral norm coefficient for SNGP backbone.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -289,6 +310,20 @@ def main() -> None:
             dropout=float(mcfg["dropout"]),
         ).to(device)
         print(f"Head: evidential (Dirichlet, EDL); KL annealing over {args.edl_annealing_steps} epochs")
+    elif head_type == "sngp":
+        model = CNN1DTransformerSNGP(
+            in_channels=int(mcfg["in_channels"]),
+            num_classes=num_classes,
+            conv_channels=tuple(mcfg["conv_channels"]),
+            transformer_layers=int(mcfg["transformer_layers"]),
+            transformer_heads=int(mcfg["transformer_heads"]),
+            dropout=float(mcfg["dropout"]),
+            rff_features=int(args.sngp_rff_features),
+            rff_kernel_scale=float(args.sngp_rff_kernel_scale),
+            gp_ridge=float(args.sngp_ridge),
+            spectral_norm_coefficient=float(args.sngp_sn_coefficient),
+        ).to(device)
+        print(f"Head: sngp (spectral-norm backbone + RFF D={args.sngp_rff_features} + GP layer)")
     else:
         model = CNN1DTransformer(
             in_channels=int(mcfg["in_channels"]),
@@ -307,6 +342,10 @@ def main() -> None:
         # EDL uses its own loss (edl_mse_loss); CE criterion not needed.
         criterion = None
         print("Loss: EDL Type-II MSE + annealed KL (class weights ignored under EDL)")
+    elif head_type == "sngp":
+        # Standard CE on mean_logits.
+        criterion = nn.CrossEntropyLoss()
+        print("Loss: CE on SNGP mean logits (precision accumulation in final epoch)")
     elif cfg["training"].get("class_weighted_loss", False):
         weights = _class_weights(train_labels, num_classes).to(device)
         criterion = nn.CrossEntropyLoss(weight=weights)
@@ -344,17 +383,24 @@ def main() -> None:
 
     # ---------- Training ----------
     for epoch in range(1, epochs + 1):
+        # For SNGP, accumulate the precision matrix in the FINAL epoch only.
+        sngp_accumulate = (head_type == "sngp" and epoch == epochs)
+        if sngp_accumulate:
+            model.reset_precision()
+            print("  [SNGP] final epoch — accumulating precision matrix from training batches")
         train_metrics = _epoch_loop(
             model, train_loader, optimizer, criterion, device,
             head_type=head_type, edl_epoch=epoch,
             edl_annealing_steps=args.edl_annealing_steps,
             edl_num_classes=num_classes,
+            sngp_accumulate=sngp_accumulate,
         )
         val_metrics = _epoch_loop(
             model, val_loader, None, criterion, device,
             head_type=head_type, edl_epoch=epoch,
             edl_annealing_steps=args.edl_annealing_steps,
             edl_num_classes=num_classes,
+            sngp_accumulate=False,
         )
         scheduler.step()
 
@@ -395,6 +441,34 @@ def main() -> None:
                 break
 
     # ---------- Persist history ----------
+    if head_type == "sngp":
+        # Re-load best checkpoint, re-run a full pass of precision accumulation,
+        # then finalise and overwrite best.pt so the saved model has a usable
+        # covariance diag (the early-stopped best may not have had a final pass).
+        ckpt_path = log_root / "best.pt"
+        if ckpt_path.exists():
+            print("[SNGP] re-loading best checkpoint for final precision pass + finalize")
+            ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+            model.load_state_dict(ckpt["model"])
+            model.reset_precision()
+            model.eval()
+            with torch.no_grad():
+                for batch in train_loader:
+                    x = batch["signal"].to(device)
+                    y = batch["label"].to(device)
+                    model.accumulate(x, y)
+            model.finalize_gp()
+            torch.save(
+                {
+                    "model": model.state_dict(),
+                    "epoch": int(ckpt.get("epoch", epochs)),
+                    "val_macro_f1": float(ckpt.get("val_macro_f1", best_metric)),
+                    "cfg": cfg,
+                },
+                ckpt_path,
+            )
+            print(f"[SNGP] finalised GP + re-saved {ckpt_path}")
+
     with (log_root / "history.json").open("w") as f:
         json.dump(history, f, indent=2)
     # Also persist the indices used in this run so eval is reproducible.

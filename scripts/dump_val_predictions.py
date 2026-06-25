@@ -32,9 +32,11 @@ from torch.utils.data import DataLoader, Subset
 
 from rppg_sa.models.cnn1d_transformer import CNN1DTransformer
 from rppg_sa.models.edl_classifier import CNN1DTransformerEDL
+from rppg_sa.models.sngp_classifier import CNN1DTransformerSNGP
 from rppg_sa.uncertainty.ensembles import ensemble_predict
 from rppg_sa.uncertainty.evidential import edl_uncertainty
 from rppg_sa.uncertainty.mc_dropout import mc_dropout_predict
+from rppg_sa.uncertainty.sngp import mean_field_logits
 from rppg_sa.utils.config import load_config
 
 
@@ -121,6 +123,20 @@ def _build_model(cfg: dict[str, Any], device: torch.device) -> torch.nn.Module:
             transformer_heads=int(mcfg["transformer_heads"]),
             dropout=float(mcfg["dropout"]),
         ).to(device)
+    if head_type == "sngp":
+        sngp_kwargs = mcfg.get("sngp", {})
+        return CNN1DTransformerSNGP(
+            in_channels=int(mcfg["in_channels"]),
+            num_classes=int(mcfg["num_classes"]),
+            conv_channels=tuple(mcfg["conv_channels"]),
+            transformer_layers=int(mcfg["transformer_layers"]),
+            transformer_heads=int(mcfg["transformer_heads"]),
+            dropout=float(mcfg["dropout"]),
+            rff_features=int(sngp_kwargs.get("rff_features", 1024)),
+            rff_kernel_scale=float(sngp_kwargs.get("rff_kernel_scale", 1.0)),
+            gp_ridge=float(sngp_kwargs.get("gp_ridge", 1e-3)),
+            spectral_norm_coefficient=float(sngp_kwargs.get("spectral_norm_coefficient", 0.95)),
+        ).to(device)
     return CNN1DTransformer(
         in_channels=int(mcfg["in_channels"]),
         num_classes=int(mcfg["num_classes"]),
@@ -197,6 +213,31 @@ def _forward_evidential(model, loader, device):
     )
 
 
+@torch.no_grad()
+def _forward_sngp(model, loader, device):
+    """SNGP forward with mean-field correction. Returns probs, labels, entropy."""
+    model.eval()
+    probs_list, ent_list, labels = [], [], []
+    for batch in loader:
+        x = batch["signal"].to(device)
+        mean_logits, variance = model(x)
+        if variance is None:
+            probs = torch.softmax(mean_logits, dim=-1)
+        else:
+            corrected = mean_field_logits(mean_logits, variance)
+            probs = torch.softmax(corrected, dim=-1)
+        eps = 1e-12
+        ent = -(probs * torch.log(probs + eps)).sum(dim=-1)
+        probs_list.append(probs.cpu().numpy())
+        ent_list.append(ent.cpu().numpy())
+        labels.extend(batch["label"].tolist())
+    return (
+        np.concatenate(probs_list, axis=0),
+        np.array(labels, dtype=np.int64),
+        np.concatenate(ent_list, axis=0),
+    )
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--config", type=Path, required=True)
@@ -204,14 +245,14 @@ def main() -> None:
                    help="Single checkpoint (deterministic, mc_dropout).")
     p.add_argument("--ensemble-checkpoints", type=Path, nargs="+", default=None,
                    help="M checkpoints for --uq ensembles.")
-    p.add_argument("--uq", choices=["deterministic", "mc_dropout", "ensembles", "evidential"],
+    p.add_argument("--uq", choices=["deterministic", "mc_dropout", "ensembles", "evidential", "sngp"],
                    default="deterministic")
     p.add_argument("--mc-samples", type=int, default=30)
     p.add_argument("--out-dir-name", type=str, default=None,
                    help="Override the output subdir name (default eval_val_<uq>).")
     args = p.parse_args()
 
-    if args.uq in ("deterministic", "mc_dropout", "evidential") and args.checkpoint is None:
+    if args.uq in ("deterministic", "mc_dropout", "evidential", "sngp") and args.checkpoint is None:
         raise SystemExit(f"--uq {args.uq} requires --checkpoint")
     if args.uq == "ensembles" and not args.ensemble_checkpoints:
         raise SystemExit("--uq ensembles requires --ensemble-checkpoints")
@@ -250,6 +291,13 @@ def main() -> None:
         # LW-CCSD as the same-shape confidence rank), use predictive entropy.
         eps = 1e-12
         entropy = -np.sum(probs * np.log(probs + eps), axis=1)
+    elif args.uq == "sngp":
+        cfg["classifier"]["head"] = "sngp"
+        model = _build_model(cfg, device)
+        _load_checkpoint(model, args.checkpoint, device)
+        print(f"Loaded SNGP checkpoint: {args.checkpoint}")
+        probs, labels, entropy = _forward_sngp(model, loader, device)
+        confidence = -entropy
     else:  # ensembles
         models = []
         for ckpt in args.ensemble_checkpoints:

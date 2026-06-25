@@ -14,7 +14,7 @@
     <hr class="cover-divider">
     <div class="cover-author">Muhammad Shahnawaz Khan</div>
     <div class="cover-author-meta">Independent Researcher · Lahore, Pakistan · ORCID 0009-0007-4055-6563</div>
-    <div class="cover-date">June 2026 · v1.3.0</div>
+    <div class="cover-date">June 2026 · v1.4.0</div>
     <hr class="cover-divider">
     <div class="cover-bottom">
         <span class="label">Code &amp; Data:</span> github.com/ShahnawazKakarh/rppg-selective-arrhythmia<br>
@@ -224,6 +224,7 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <tr><td>Deterministic</td><td class="num">0.2367</td><td class="num best">0.2082</td><td class="num best">+12.1&thinsp;%</td><td class="num">&minus;0.045</td></tr>
 <tr><td>MC Dropout</td><td class="num">0.1980</td><td class="num">0.1899</td><td class="num">+4.1&thinsp;%</td><td class="num">&minus;0.029</td></tr>
 <tr><td>Ensembles (<em>M</em>&thinsp;=&thinsp;5, clean methodology)</td><td class="num">0.2066</td><td class="num">0.1928</td><td class="num">+6.7&thinsp;%</td><td class="num">&minus;0.032</td></tr>
+<tr><td>SNGP (spectral-norm + RFF + GP)</td><td class="num">0.2044</td><td class="num">0.1969</td><td class="num">+3.7&thinsp;%</td><td class="num">&minus;0.023</td></tr>
 <tr><td class="best">EDL (single-pass Dirichlet)</td><td class="num best">0.1725</td><td class="num">0.1764</td><td class="num bad">&minus;2.3&thinsp;%</td><td class="num">&minus;0.013</td></tr>
 </tbody>
 </table>
@@ -423,7 +424,7 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 
 <p><strong>Mechanism &mdash; why LW-CCSD does not help EDL.</strong> Spectral SNR provides cross-regime information that the model's confidence does not have access to: a noisy waveform produces a low SNR independently of what the classifier thinks. For deterministic, MC Dropout, and ensemble confidences this signal is genuinely orthogonal to the model output, which is why LW-CCSD recovers margin on all three. EDL is different: under the EDL training objective, an input that lacks a clean cardiac rhythm produces <em>low evidence on every class</em>, hence low total &alpha;, hence high Dirichlet uncertainty <em>u</em> = K/S. EDL has <em>learned in-method</em> exactly the cross-regime ranking that SNR would supply externally. Mixing the two ranks is therefore double-counting the same content, and the rank-noise component of the externally-computed SNR rank now reduces selective quality rather than adding to it.</p>
 
-<p>This is a falsifiable mechanism prediction. Any UQ method that conditions on input signal quality directly &mdash; SNGP via its distance-aware feature norm, evidential variants, or learned-extractor models that propagate uncertainty from the rPPG stage forward &mdash; should similarly admit no LW-CCSD margin. The remaining three families (post-hoc softmax confidence, stochastic-pass disagreement, ensemble disagreement) all leave SNR-content unmodelled and therefore admit margin.</p>
+<p>This is a falsifiable mechanism prediction. Any UQ method that conditions on input signal quality directly &mdash; SNGP via its distance-aware feature norm, evidential variants, or learned-extractor models that propagate uncertainty from the rPPG stage forward &mdash; should similarly admit no LW-CCSD margin. The remaining three families (post-hoc softmax confidence, stochastic-pass disagreement, ensemble disagreement) all leave SNR-content unmodelled and therefore admit margin. <strong>Section&thinsp;5.13 tests this prediction with SNGP and refutes it.</strong></p>
 
 <p><strong>Deployment update.</strong> The recommendation chain across compute budgets now reads:</p>
 <ul>
@@ -432,6 +433,54 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <li><strong>Maximum budget:</strong> clean ensemble + LW-CCSD &mdash; test AURC 0.1928. Five-model inference plus deferral.</li>
 </ul>
 <p>EDL at the standard budget dominates both the lightweight and the maximum configurations on AURC, at single-pass inference cost. For clinical-screen deployment the simplest defensible choice is therefore EDL alone &mdash; no auxiliary feature, no per-class weights, no ensemble.</p>
+
+<h2>5.13&nbsp;&nbsp;SNGP &mdash; falsifying the input-conditional-UQ mechanism</h2>
+<p>We add SNGP (Liu <em>et&thinsp;al.</em> 2020) as a fifth UQ source. SNGP replaces the softmax head with a Random Fourier Features projection followed by a Bayesian Gaussian-process layer, and applies spectral normalisation (coefficient 0.95) to every Conv1d and Linear layer in the backbone. After standard CE training, a diagonal precision matrix is accumulated over a full training-set pass and inverted to yield a per-logit variance; at inference, the mean-field correction softmax(&mu; / &radic;(1 + (&pi;/8) &sigma;<sup>2</sup>)) produces calibrated probabilities. The backbone is spectral-norm-Lipschitz, so the feature map is distance-preserving and the GP variance grows on inputs far from the training distribution &mdash; exactly the &ldquo;distance-aware&rdquo; UQ that Section&thinsp;5.12 hypothesised would absorb signal-quality information.</p>
+
+<table class="keep-together">
+<caption><strong>Table 13.</strong> SNGP on CinC test set (<em>n</em>&thinsp;=&thinsp;6,750). Single checkpoint, data_seed = 42, RFF <em>D</em>&thinsp;=&thinsp;1024, ridge 10<sup>&minus;3</sup>, spectral-norm coefficient 0.95.</caption>
+<thead>
+<tr><th>Method</th><th class="num">Test Acc</th><th class="num">ECE&thinsp;&darr;</th><th class="num">Brier&thinsp;&darr;</th><th class="num">UQ-only AURC</th></tr>
+</thead>
+<tbody>
+<tr><td>Deterministic</td><td class="num">0.686</td><td class="num">&mdash;</td><td class="num">0.440</td><td class="num">0.2367</td></tr>
+<tr><td>MC Dropout (<em>T</em>&thinsp;=&thinsp;30)</td><td class="num">0.715</td><td class="num">0.076</td><td class="num">0.418</td><td class="num">0.1980</td></tr>
+<tr><td>Clean Ensemble (<em>M</em>&thinsp;=&thinsp;5)</td><td class="num">0.692</td><td class="num">0.052</td><td class="num">0.440</td><td class="num">0.2066</td></tr>
+<tr><td class="best"><strong>SNGP</strong></td><td class="num">0.729</td><td class="num best">0.029</td><td class="num best">0.393</td><td class="num">0.2044</td></tr>
+<tr><td>EDL</td><td class="num best">0.739</td><td class="num">0.137</td><td class="num">0.426</td><td class="num best">0.1725</td></tr>
+</tbody>
+</table>
+
+<p>SNGP has the <em>best test ECE of all five methods</em> (0.029, a 44&thinsp;% relative improvement over the clean ensemble at the same single-pass inference cost) and the second-best test accuracy (0.729). On AURC it sits in the middle of the classical-UQ range. The headline question is whether LW-CCSD still adds margin.</p>
+
+<table class="keep-together">
+<caption><strong>Table 14.</strong> LW-CCSD Pareto frontier on SNGP. Val UQ-only AF recall at <em>c</em><sub>0</sub>&thinsp;=&thinsp;0.50 is 0.085, so the floor sweep starts at 0.03.</caption>
+<thead>
+<tr><th>Val AF floor</th><th><strong>w</strong>* (NSR/AF/Other)</th><th class="num">Test AURC</th><th class="num">&Delta; vs UQ</th><th class="num">Test AF@0.5</th><th class="num">&Delta; AF</th></tr>
+</thead>
+<tbody>
+<tr><td>0.03</td><td>0.0 / 0.4 / 1.0</td><td class="num">0.1979</td><td class="num">+3.16&thinsp;%</td><td class="num">0.052</td><td class="num">&minus;0.047</td></tr>
+<tr><td>0.05</td><td>0.0 / 0.2 / 1.0</td><td class="num">0.1973</td><td class="num">+3.47&thinsp;%</td><td class="num">0.070</td><td class="num">&minus;0.029</td></tr>
+<tr><td class="best">0.06</td><td class="best">0.0 / 0.1 / 1.0</td><td class="num best">0.1969</td><td class="num best">+3.69&thinsp;%</td><td class="num">0.075</td><td class="num">&minus;0.023</td></tr>
+<tr><td>0.08</td><td>0.0 / 0.0 / 0.4</td><td class="num">0.2019</td><td class="num">+1.24&thinsp;%</td><td class="num">0.098</td><td class="num">+0.000</td></tr>
+<tr><td>UQ-only baseline</td><td>&mdash;</td><td class="num">0.2044</td><td class="num">&mdash;</td><td class="num">0.098</td><td class="num">0.000</td></tr>
+</tbody>
+</table>
+
+<p><strong>SNGP admits a positive LW-CCSD margin of +3.7&thinsp;%</strong> at AF cost just &minus;0.023, in the same range as MC Dropout (+4.1&thinsp;%) and ensembles (+6.7&thinsp;%). The Section&thinsp;5.12 mechanism prediction is refuted: distance-aware UQ does <em>not</em> imply no-LW-CCSD-margin. EDL's negative margin is specific to EDL, not a generic property of input-conditional uncertainty.</p>
+
+<p><strong>Why EDL is unique and SNGP is not.</strong> Both methods are input-aware, but through different mechanisms. EDL's evidence collapses on inputs that lack a <em>confident-classifiable signal</em> &mdash; this is operationally identical to a signal-quality measurement, because a noisy rPPG signal lacks rhythm template, harmonic structure, and consistent beat morphology, and therefore produces low evidence on every class. SNGP's variance grows on inputs <em>far from the training distribution in feature space</em>. Signal quality and feature-space distance are correlated but distinct: a clean signal from an under-represented record can be far in feature space, and a noisy signal from a well-represented record can be close. SNR adds information about signal quality that the GP variance does not capture, and that is precisely the information LW-CCSD's external SQI rank provides.</p>
+
+<p>The revised mechanism statement is therefore narrower: EDL's no-LW-CCSD-margin behaviour stems from a specific property of the EDL training objective &mdash; evidence collapses on inputs that lack a confident-classifiable signal, which is operationally identical to a signal-quality measurement. This is <em>not</em> a property of input-conditional UQ in general. The classification of UQ sources is finer than &ldquo;input-conditional vs. not&rdquo;: it is &ldquo;evidence-on-noisy-signal-collapses&rdquo; vs. &ldquo;feature-space-distance-tracks&rdquo; vs. &ldquo;stochastic-disagreement&rdquo;, and only the first family is redundant with external SQI.</p>
+
+<p><strong>Deployment update.</strong> The recommendation chain across compute budgets becomes:</p>
+<ul>
+<li><strong>Smallest budget:</strong> deterministic + LW-CCSD &mdash; test AURC 0.1998. Lightweight single-pass plus deferral.</li>
+<li><strong>Standard budget (AURC-first):</strong> single-pass EDL &mdash; test AURC 0.1725.</li>
+<li><strong>Standard budget (calibration-first):</strong> single-pass SNGP + LW-CCSD &mdash; test AURC 0.1969, test ECE 0.029 (best of all five). Recommended when reliability diagrams are part of the deployment contract.</li>
+<li><strong>Maximum budget:</strong> clean ensemble + LW-CCSD &mdash; test AURC 0.1928.</li>
+</ul>
+<p>Adding SNGP gives the practitioner a calibration-first choice that EDL cannot provide &mdash; EDL has the worst ECE of all five methods (0.137 vs SNGP's 0.029). For a clinical-screen system where regulators inspect calibration plots, SNGP + LW-CCSD is the defensible choice.</p>
 
 <!-- ================= DISCUSSION ================= -->
 <h1><span class="section-num">6</span>Discussion</h1>

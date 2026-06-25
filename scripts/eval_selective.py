@@ -33,6 +33,7 @@ from torch.utils.data import DataLoader, Subset
 
 from rppg_sa.models.cnn1d_transformer import CNN1DTransformer
 from rppg_sa.models.edl_classifier import CNN1DTransformerEDL
+from rppg_sa.models.sngp_classifier import CNN1DTransformerSNGP
 from rppg_sa.selective.metrics import (
     brier_score,
     expected_calibration_error,
@@ -48,6 +49,7 @@ from rppg_sa.uncertainty.conformal import (
 from rppg_sa.uncertainty.ensembles import ensemble_predict
 from rppg_sa.uncertainty.evidential import edl_uncertainty
 from rppg_sa.uncertainty.mc_dropout import mc_dropout_predict
+from rppg_sa.uncertainty.sngp import mean_field_logits
 from rppg_sa.utils.config import load_config
 from rppg_sa.utils.seed import set_seed
 
@@ -146,6 +148,20 @@ def _build_model(cfg: dict[str, Any], device: torch.device) -> torch.nn.Module:
             transformer_heads=int(mcfg["transformer_heads"]),
             dropout=float(mcfg["dropout"]),
         ).to(device)
+    elif head_type == "sngp":
+        sngp_kwargs = mcfg.get("sngp", {})
+        model = CNN1DTransformerSNGP(
+            in_channels=int(mcfg["in_channels"]),
+            num_classes=int(mcfg["num_classes"]),
+            conv_channels=tuple(mcfg["conv_channels"]),
+            transformer_layers=int(mcfg["transformer_layers"]),
+            transformer_heads=int(mcfg["transformer_heads"]),
+            dropout=float(mcfg["dropout"]),
+            rff_features=int(sngp_kwargs.get("rff_features", 1024)),
+            rff_kernel_scale=float(sngp_kwargs.get("rff_kernel_scale", 1.0)),
+            gp_ridge=float(sngp_kwargs.get("gp_ridge", 1e-3)),
+            spectral_norm_coefficient=float(sngp_kwargs.get("spectral_norm_coefficient", 0.95)),
+        ).to(device)
     else:
         model = CNN1DTransformer(
             in_channels=int(mcfg["in_channels"]),
@@ -166,12 +182,15 @@ def _load_checkpoint(model: torch.nn.Module, path: Path, device: torch.device) -
     ckpt_cfg = ckpt.get("cfg") if isinstance(ckpt, dict) else None
     if ckpt_cfg is not None:
         ckpt_head = ckpt_cfg.get("classifier", {}).get("head", "softmax")
-        current_is_edl = isinstance(model, CNN1DTransformerEDL)
-        if (ckpt_head == "evidential") != current_is_edl:
+        current_kind = (
+            "evidential" if isinstance(model, CNN1DTransformerEDL)
+            else "sngp" if isinstance(model, CNN1DTransformerSNGP)
+            else "softmax"
+        )
+        if ckpt_head != current_kind:
             raise RuntimeError(
                 f"Checkpoint head ({ckpt_head!r}) does not match constructed model "
-                f"({'evidential' if current_is_edl else 'softmax'!r}). "
-                f"Ensure the eval config's classifier.head matches the checkpoint."
+                f"({current_kind!r}). Ensure the eval cfg classifier.head matches the checkpoint."
             )
 
 
@@ -239,6 +258,35 @@ def _forward_evidential(model, loader, device):
     return (
         np.concatenate(probs_list, axis=0),
         np.concatenate(unc_list, axis=0),
+        np.array(labels, dtype=np.int64),
+    )
+
+
+@torch.no_grad()
+def _forward_sngp(model, loader, device):
+    """SNGP forward pass with mean-field correction.
+
+    Returns probs (B, K), variance (B, K), and labels.
+    """
+    model.eval()
+    probs_list, var_list, labels = [], [], []
+    for batch in loader:
+        x = batch["signal"].to(device)
+        mean_logits, variance = model(x)
+        if variance is None:
+            # GP not finalised; fall back to mean-only softmax.
+            probs = torch.softmax(mean_logits, dim=-1)
+            var = torch.zeros_like(mean_logits)
+        else:
+            corrected = mean_field_logits(mean_logits, variance)
+            probs = torch.softmax(corrected, dim=-1)
+            var = variance
+        probs_list.append(probs.cpu().numpy())
+        var_list.append(var.cpu().numpy())
+        labels.extend(batch["label"].tolist())
+    return (
+        np.concatenate(probs_list, axis=0),
+        np.concatenate(var_list, axis=0),
         np.array(labels, dtype=np.int64),
     )
 
@@ -320,7 +368,7 @@ def main() -> None:
                         help="Single checkpoint (mc_dropout, conformal).")
     parser.add_argument("--ensemble-checkpoints", type=Path, nargs="+", default=None,
                         help="M checkpoints for --uq ensembles.")
-    parser.add_argument("--uq", choices=["mc_dropout", "ensembles", "conformal", "evidential"], default="mc_dropout")
+    parser.add_argument("--uq", choices=["mc_dropout", "ensembles", "conformal", "evidential", "sngp"], default="mc_dropout")
     parser.add_argument("--mc-samples", type=int, default=30)
     parser.add_argument("--alpha", type=float, default=0.1,
                         help="Conformal miscoverage level; 0.1 → 90% sets.")
@@ -334,7 +382,7 @@ def main() -> None:
     print(f"Device: {device}")
 
     # ---------- Validate args ----------
-    if args.uq in ("mc_dropout", "conformal", "evidential") and args.checkpoint is None:
+    if args.uq in ("mc_dropout", "conformal", "evidential", "sngp") and args.checkpoint is None:
         raise ValueError(f"--uq {args.uq} requires --checkpoint")
     if args.uq == "ensembles" and not args.ensemble_checkpoints:
         raise ValueError("--uq ensembles requires --ensemble-checkpoints")
@@ -415,6 +463,22 @@ def main() -> None:
         mi = None
         extra = {"entropy": entropy, "dirichlet_uncertainty": uncertainty}
         method_meta = {"uq_kind": "edl"}
+
+    elif args.uq == "sngp":
+        cfg["classifier"]["head"] = "sngp"
+        model = _build_model(cfg, device)
+        _load_checkpoint(model, args.checkpoint, device)
+        print(f"Loaded SNGP checkpoint: {args.checkpoint}")
+        probs, variance, labels = _forward_sngp(model, test_loader, device)
+        # Confidence: -predictive entropy of mean-field corrected probs.
+        eps = 1e-12
+        entropy = -np.sum(probs * np.log(probs + eps), axis=1)
+        confidences = -entropy
+        mi = None
+        # Aggregate per-sample variance to a scalar (mean across classes).
+        mean_var = variance.mean(axis=1)
+        extra = {"entropy": entropy, "mean_variance": mean_var}
+        method_meta = {"uq_kind": "sngp", "mean_variance": float(mean_var.mean())}
 
     else:
         raise ValueError(f"Unsupported --uq value: {args.uq}")
