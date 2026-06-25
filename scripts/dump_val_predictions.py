@@ -245,7 +245,7 @@ def main() -> None:
                    help="Single checkpoint (deterministic, mc_dropout).")
     p.add_argument("--ensemble-checkpoints", type=Path, nargs="+", default=None,
                    help="M checkpoints for --uq ensembles.")
-    p.add_argument("--uq", choices=["deterministic", "mc_dropout", "ensembles", "evidential", "sngp"],
+    p.add_argument("--uq", choices=["deterministic", "mc_dropout", "ensembles", "evidential", "evidential_ensemble", "sngp"],
                    default="deterministic")
     p.add_argument("--mc-samples", type=int, default=30)
     p.add_argument("--out-dir-name", type=str, default=None,
@@ -254,8 +254,8 @@ def main() -> None:
 
     if args.uq in ("deterministic", "mc_dropout", "evidential", "sngp") and args.checkpoint is None:
         raise SystemExit(f"--uq {args.uq} requires --checkpoint")
-    if args.uq == "ensembles" and not args.ensemble_checkpoints:
-        raise SystemExit("--uq ensembles requires --ensemble-checkpoints")
+    if args.uq in ("ensembles", "evidential_ensemble") and not args.ensemble_checkpoints:
+        raise SystemExit(f"--uq {args.uq} requires --ensemble-checkpoints")
 
     cfg = load_config(args.config)
     device = _resolve_device(cfg["experiment"]["device"])
@@ -298,6 +298,31 @@ def main() -> None:
         print(f"Loaded SNGP checkpoint: {args.checkpoint}")
         probs, labels, entropy = _forward_sngp(model, loader, device)
         confidence = -entropy
+    elif args.uq == "evidential_ensemble":
+        cfg["classifier"]["head"] = "evidential"
+        models = []
+        for ckpt in args.ensemble_checkpoints:
+            m = _build_model(cfg, device)
+            _load_checkpoint(m, ckpt, device)
+            m.eval()
+            models.append(m)
+        print(f"Loaded EDL ensemble of {len(models)} models")
+        probs_acc, unc_acc, labels = None, None, []
+        with torch.no_grad():
+            for batch in loader:
+                x = batch["signal"].to(device)
+                alphas = torch.stack([m(x) for m in models], dim=0)
+                alpha_mean = alphas.mean(dim=0)
+                probs_b, u_b = edl_uncertainty(alpha_mean)
+                p_np, u_np = probs_b.cpu().numpy(), u_b.cpu().numpy()
+                probs_acc = p_np if probs_acc is None else np.concatenate([probs_acc, p_np], axis=0)
+                unc_acc = u_np if unc_acc is None else np.concatenate([unc_acc, u_np], axis=0)
+                labels.extend(batch["label"].tolist())
+        probs, uncertainty = probs_acc, unc_acc
+        labels = np.array(labels, dtype=np.int64)
+        confidence = -uncertainty
+        eps = 1e-12
+        entropy = -np.sum(probs * np.log(probs + eps), axis=1)
     else:  # ensembles
         models = []
         for ckpt in args.ensemble_checkpoints:

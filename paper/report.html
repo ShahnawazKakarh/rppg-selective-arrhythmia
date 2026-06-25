@@ -14,7 +14,7 @@
     <hr class="cover-divider">
     <div class="cover-author">Muhammad Shahnawaz Khan</div>
     <div class="cover-author-meta">Independent Researcher · Lahore, Pakistan · ORCID 0009-0007-4055-6563</div>
-    <div class="cover-date">June 2026 · v1.4.0</div>
+    <div class="cover-date">June 2026 · v1.5.0</div>
     <hr class="cover-divider">
     <div class="cover-bottom">
         <span class="label">Code &amp; Data:</span> github.com/ShahnawazKakarh/rppg-selective-arrhythmia<br>
@@ -481,6 +481,55 @@ subject to&nbsp;&nbsp;recall<sub>val</sub><sup>(c)</sup>(<em>s</em><sub><strong>
 <li><strong>Maximum budget:</strong> clean ensemble + LW-CCSD &mdash; test AURC 0.1928.</li>
 </ul>
 <p>Adding SNGP gives the practitioner a calibration-first choice that EDL cannot provide &mdash; EDL has the worst ECE of all five methods (0.137 vs SNGP's 0.029). For a clinical-screen system where regulators inspect calibration plots, SNGP + LW-CCSD is the defensible choice.</p>
+
+<h2>5.14&nbsp;&nbsp;EDL ensemble &mdash; variance characterisation and mechanism confirmation</h2>
+<p>The Section&thinsp;5.12 EDL result is from a single checkpoint. Two natural follow-up questions: (a) how stable is EDL across initialisation seeds? and (b) does the no-LW-CCSD-margin property survive ensembling? We train four additional EDL members (model_seed&thinsp;&isin;&thinsp;{2,&thinsp;3,&thinsp;4,&thinsp;5}, shared data_seed&thinsp;=&thinsp;42), then form a 5-member EDL ensemble by averaging Dirichlet concentrations across members before computing predictive probabilities and uncertainty.</p>
+
+<table class="keep-together">
+<caption><strong>Table 15.</strong> EDL ensemble on CinC test set (<em>n</em>&thinsp;=&thinsp;6,750). Per-member statistics characterise the seed-to-seed variance; the M&thinsp;=&thinsp;5 row is the ensemble.</caption>
+<thead>
+<tr><th>Configuration</th><th class="num">Test Acc</th><th class="num">ECE&thinsp;&darr;</th><th class="num">Brier&thinsp;&darr;</th><th class="num">UQ-only AURC</th></tr>
+</thead>
+<tbody>
+<tr><td>EDL member m=1 (Section&thinsp;5.12)</td><td class="num">0.7390</td><td class="num">0.138</td><td class="num">0.426</td><td class="num">0.1725</td></tr>
+<tr><td>EDL member m=2</td><td class="num">0.7356</td><td class="num">0.140</td><td class="num">0.432</td><td class="num">0.1685</td></tr>
+<tr><td>EDL member m=3</td><td class="num">0.7434</td><td class="num">0.139</td><td class="num">0.423</td><td class="num">0.1655</td></tr>
+<tr><td>EDL member m=4</td><td class="num">0.7418</td><td class="num">0.135</td><td class="num">0.423</td><td class="num">0.1679</td></tr>
+<tr><td>EDL member m=5</td><td class="num">0.7430</td><td class="num">0.140</td><td class="num">0.425</td><td class="num">0.1664</td></tr>
+<tr><td>Per-member mean&nbsp;&plusmn;&nbsp;std</td><td class="num">0.7405&thinsp;&plusmn;&thinsp;0.0033</td><td class="num">0.138&thinsp;&plusmn;&thinsp;0.002</td><td class="num">0.426&thinsp;&plusmn;&thinsp;0.003</td><td class="num">0.1681&thinsp;&plusmn;&thinsp;0.0027</td></tr>
+<tr><td class="best"><strong>EDL ensemble (M&thinsp;=&thinsp;5)</strong></td><td class="num best">0.7468</td><td class="num">0.144</td><td class="num best">0.422</td><td class="num best">0.1640</td></tr>
+</tbody>
+</table>
+
+<p>Three findings:</p>
+<p><strong>EDL is variance-stable across seeds.</strong> Per-member AURC standard deviation is 0.0027 on a mean of 0.1681 &mdash; 1.6&thinsp;% relative spread. The Section&thinsp;5.12 result (member m=1, AURC 0.1725) sits at the upper end of the per-member distribution but well within the typical seed-to-seed range. The EDL headline is reproducible across initialisations.</p>
+<p><strong>EDL ensemble is the strongest configuration studied.</strong> Test AURC 0.1640 &mdash; 4.9&thinsp;% relative improvement over best single EDL (0.1725) and 20.6&thinsp;% relative improvement over the clean softmax ensemble at the same M&thinsp;=&thinsp;5 inference budget (0.2066). Test accuracy 0.7468 (best of any configuration). Brier 0.422 (best of any configuration). ECE 0.144 (slightly worse than worst single-member ECE, reflecting Dirichlet sharpening under averaging). For an AURC-first deployment with five-pass inference budget, EDL ensemble dominates all alternatives.</p>
+
+<table class="keep-together">
+<caption><strong>Table 16.</strong> LW-CCSD Pareto on the EDL ensemble. Val UQ-only AF recall at <em>c</em><sub>0</sub>&thinsp;=&thinsp;0.50 is 0.298, so floors &ge; 0.35 are infeasible.</caption>
+<thead>
+<tr><th>Val AF floor</th><th><strong>w</strong>* (NSR/AF/Other)</th><th class="num">Test AURC</th><th class="num">&Delta; vs UQ</th><th class="num">Test AF@0.5</th><th class="num">&Delta; AF</th></tr>
+</thead>
+<tbody>
+<tr><td>0.20</td><td>0.0 / 0.4 / 0.3</td><td class="num">0.1688</td><td class="num bad">&minus;2.91&thinsp;%</td><td class="num">0.347</td><td class="num">&minus;0.036</td></tr>
+<tr><td>0.25</td><td>0.0 / 0.4 / 0.3</td><td class="num">0.1688</td><td class="num bad">&minus;2.91&thinsp;%</td><td class="num">0.347</td><td class="num">&minus;0.036</td></tr>
+<tr><td>0.28</td><td>0.0 / 0.4 / 0.3</td><td class="num">0.1688</td><td class="num bad">&minus;2.91&thinsp;%</td><td class="num">0.347</td><td class="num">&minus;0.036</td></tr>
+<tr><td class="best">0.30</td><td class="best">0.0 / 0.3 / 0.3</td><td class="num best">0.1679</td><td class="num bad">&minus;2.40&thinsp;%</td><td class="num">0.372</td><td class="num">&minus;0.011</td></tr>
+<tr><td>UQ-only baseline</td><td>&mdash;</td><td class="num best">0.1640</td><td class="num">&mdash;</td><td class="num">0.383</td><td class="num">0.000</td></tr>
+</tbody>
+</table>
+
+<p><strong>LW-CCSD remains structurally negative on the EDL ensemble.</strong> Every feasible operating point produces negative &Delta; AURC, ranging from &minus;2.91&thinsp;% at floor 0.20 to &minus;2.40&thinsp;% at the best safe floor (0.30, AF cost &minus;0.011). This confirms the Section&thinsp;5.12 mechanism is structural to the EDL training objective rather than a property of any one initialisation: ensembling EDL members averages their evidence heads but does not change the fact that each member's evidence collapses on noisy signals. The redundancy with external SNR therefore persists at the ensemble level.</p>
+
+<p><strong>Final deployment chain.</strong></p>
+<ul>
+<li><strong>Smallest budget:</strong> deterministic + LW-CCSD &mdash; test AURC 0.1998. Single-pass.</li>
+<li><strong>Standard budget (AURC-first, single pass):</strong> single-pass EDL &mdash; test AURC 0.1725.</li>
+<li><strong>Standard budget (calibration-first, single pass):</strong> SNGP + LW-CCSD &mdash; test AURC 0.1969, test ECE 0.029.</li>
+<li><strong>Maximum AURC (M&thinsp;=&thinsp;5 inference):</strong> EDL ensemble &mdash; test AURC <strong>0.1640</strong>, test acc <strong>0.747</strong>, test Brier <strong>0.422</strong> &mdash; the strongest configuration studied.</li>
+<li><strong>Maximum calibration (M&thinsp;=&thinsp;5 inference):</strong> clean softmax ensemble + LW-CCSD &mdash; test AURC 0.1928, test ECE 0.052.</li>
+</ul>
+<p>EDL ensemble is the new recommended choice when the deployment can afford the M&thinsp;=&thinsp;5 inference budget and AURC is the primary objective. The EDL mechanism makes its own LW-CCSD redundant at every scale.</p>
 
 <!-- ================= DISCUSSION ================= -->
 <h1><span class="section-num">6</span>Discussion</h1>

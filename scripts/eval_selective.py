@@ -368,7 +368,7 @@ def main() -> None:
                         help="Single checkpoint (mc_dropout, conformal).")
     parser.add_argument("--ensemble-checkpoints", type=Path, nargs="+", default=None,
                         help="M checkpoints for --uq ensembles.")
-    parser.add_argument("--uq", choices=["mc_dropout", "ensembles", "conformal", "evidential", "sngp"], default="mc_dropout")
+    parser.add_argument("--uq", choices=["mc_dropout", "ensembles", "conformal", "evidential", "evidential_ensemble", "sngp"], default="mc_dropout")
     parser.add_argument("--mc-samples", type=int, default=30)
     parser.add_argument("--alpha", type=float, default=0.1,
                         help="Conformal miscoverage level; 0.1 → 90% sets.")
@@ -384,8 +384,8 @@ def main() -> None:
     # ---------- Validate args ----------
     if args.uq in ("mc_dropout", "conformal", "evidential", "sngp") and args.checkpoint is None:
         raise ValueError(f"--uq {args.uq} requires --checkpoint")
-    if args.uq == "ensembles" and not args.ensemble_checkpoints:
-        raise ValueError("--uq ensembles requires --ensemble-checkpoints")
+    if args.uq in ("ensembles", "evidential_ensemble") and not args.ensemble_checkpoints:
+        raise ValueError(f"--uq {args.uq} requires --ensemble-checkpoints")
 
     # ---------- Data ----------
     primary_ckpt_dir = (
@@ -463,6 +463,37 @@ def main() -> None:
         mi = None
         extra = {"entropy": entropy, "dirichlet_uncertainty": uncertainty}
         method_meta = {"uq_kind": "edl"}
+
+    elif args.uq == "evidential_ensemble":
+        cfg["classifier"]["head"] = "evidential"
+        models = []
+        for p in args.ensemble_checkpoints:
+            m = _build_model(cfg, device)
+            _load_checkpoint(m, p, device)
+            m.eval()
+            models.append(m)
+        print(f"Loaded EDL ensemble of {len(models)} models")
+        # Average alpha across members -> ensemble-Dirichlet -> probs + uncertainty.
+        probs_acc, unc_acc, labels = None, None, []
+        with torch.no_grad():
+            for batch in test_loader:
+                x = batch["signal"].to(device)
+                alphas = torch.stack([m(x) for m in models], dim=0)  # (M, B, K)
+                alpha_mean = alphas.mean(dim=0)
+                probs, u = edl_uncertainty(alpha_mean)
+                p_np, u_np = probs.cpu().numpy(), u.cpu().numpy()
+                probs_acc = p_np if probs_acc is None else np.concatenate([probs_acc, p_np], axis=0)
+                unc_acc = u_np if unc_acc is None else np.concatenate([unc_acc, u_np], axis=0)
+                labels.extend(batch["label"].tolist())
+        probs, uncertainty = probs_acc, unc_acc
+        labels = np.array(labels, dtype=np.int64)
+        confidences = -uncertainty
+        eps = 1e-12
+        entropy = -np.sum(probs * np.log(probs + eps), axis=1)
+        mi = None
+        extra = {"entropy": entropy, "dirichlet_uncertainty": uncertainty}
+        method_meta = {"uq_kind": "edl_ensemble", "ensemble_size": len(models),
+                       "checkpoints": [str(p) for p in args.ensemble_checkpoints]}
 
     elif args.uq == "sngp":
         cfg["classifier"]["head"] = "sngp"
