@@ -219,6 +219,27 @@ def clopper_pearson_lower(n_correct: int, n_total: int, alpha: float) -> float:
     return float(_beta_dist.ppf(alpha, n_correct, n_total - n_correct + 1))
 
 
+def mvbeta_per_class_alpha(family_wise_alpha: float, num_classes: int) -> float:
+    """Per-class alpha for the exact-multiplicative joint coverage bound.
+
+    Under the assumption that the per-class recall events are mutually
+    independent (val records pre-partitioned by class; Clopper-Pearson tests
+    on disjoint trial counts), the joint coverage factorises:
+
+        P(all r_c >= LCB_c) = prod_c P(r_c >= LCB_c).
+
+    Setting each per-class P(r_c >= LCB_c) = (1 - alpha)^(1/C) yields
+    P(all r_c >= LCB_c) >= 1 - alpha by construction. Per-class alpha is
+    therefore alpha_c = 1 - (1 - alpha)^(1/C).
+
+    For C = 3, alpha = 0.10 this gives alpha_c = 1 - 0.9^(1/3) = 0.0345,
+    slightly larger (more lenient LCB) than Bonferroni's alpha/C = 0.0333.
+    Bonferroni is conservative via the union bound; MV-beta is exact under
+    independence.
+    """
+    return 1.0 - (1.0 - family_wise_alpha) ** (1.0 / float(num_classes))
+
+
 def holm_feasible(
     n_correct: np.ndarray, n_total: np.ndarray, floors: np.ndarray, alpha: float,
 ) -> bool:
@@ -374,6 +395,10 @@ def main() -> None:
                         "per-class binomial p-values. Strictly more powerful than Bonferroni at "
                         "the same family-wise alpha: P(ALL per-class recalls >= floor) >= 1 - alpha. "
                         "Cannot be combined with --conformal-alpha / --conformal-joint-bonferroni.")
+    p.add_argument("--conformal-joint-mvbeta", type=float, default=None,
+                   help="If set (e.g. 0.10), applies the multivariate-beta exact-independent "
+                        "family-wise bound: per-class alpha = 1 - (1 - alpha)^(1/C), tighter "
+                        "than Bonferroni under the independence assumption.")
     args = p.parse_args()
 
     cfg = load_config(args.config)
@@ -416,6 +441,14 @@ def main() -> None:
         print(f"Bonferroni joint coverage: per-class alpha = {args.conformal_alpha} / {num_classes} = "
               f"{effective_alpha:.4f}; family-wise guarantee P(all recalls >= floor) >= "
               f"{1 - args.conformal_alpha:.2f}.")
+
+    if args.conformal_joint_mvbeta is not None:
+        if args.conformal_alpha is not None or args.conformal_joint_bonferroni or args.conformal_joint_holm is not None:
+            raise SystemExit("--conformal-joint-mvbeta is mutually exclusive with other conformal flags")
+        effective_alpha = mvbeta_per_class_alpha(args.conformal_joint_mvbeta, num_classes)
+        print(f"Multivariate-beta joint coverage: per-class alpha = 1 - (1 - {args.conformal_joint_mvbeta})^(1/{num_classes}) = "
+              f"{effective_alpha:.4f}; family-wise guarantee P(all recalls >= floor) >= "
+              f"{1 - args.conformal_joint_mvbeta:.2f} (exact under independence).")
 
     if args.conformal_joint_holm is not None and (args.conformal_alpha is not None or args.conformal_joint_bonferroni):
         raise SystemExit("--conformal-joint-holm is mutually exclusive with --conformal-alpha and --conformal-joint-bonferroni")
@@ -502,6 +535,7 @@ def main() -> None:
         "constraint_coverage": args.constraint_coverage,
         "conformal_alpha": args.conformal_alpha,
         "conformal_joint_bonferroni": args.conformal_joint_bonferroni,
+        "conformal_joint_mvbeta": args.conformal_joint_mvbeta,
         "conformal_alpha_effective_per_class": effective_alpha,
         "conformal_joint_holm": args.conformal_joint_holm,
         "label_names": label_names,

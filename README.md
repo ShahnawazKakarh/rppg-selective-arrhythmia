@@ -9,7 +9,7 @@
 
 This repository introduces and benchmarks **LW-CCSD**, a post-hoc model-agnostic deferral policy for selective prediction in contactless atrial-fibrillation (AF) screening from remote photoplethysmography (rPPG) signals. The method learns per-predicted-class quality weights combining model confidence with spectral signal-to-noise ratio, subject to a configurable per-class recall floor, and produces a tunable Pareto frontier between selective accuracy and clinical AF-recall safety.
 
-> **Status — v1.7.0 paper draft.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.7.0.pdf`](paper/lw-ccsd-rppg-af-v1.7.0.pdf). Zenodo v1.2.0: [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623). SSRN: [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878). Initial Zenodo release v1.0.0 (superseded): [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). v1.3.0 added EDL (4th UQ); v1.4.0 added SNGP (5th UQ, refutes EDL mechanism prediction); v1.5.0 added 5-member EDL ensemble (strongest config: test AURC 0.1640, test acc 0.747); v1.6.0 added EDL conformal extension; v1.7.0 adds EDL KL annealing sensitivity — negative LW-CCSD margin survives every schedule (KL ∈ {5, 10, 15, 25} epochs). See [Findings](#findings) and [Roadmap](#roadmap).
+> **Status — v1.8.0 paper draft.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.8.0.pdf`](paper/lw-ccsd-rppg-af-v1.8.0.pdf). Zenodo v1.2.0: [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623). SSRN: [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878). Initial Zenodo release v1.0.0 (superseded): [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). v1.3.0 added EDL (4th UQ); v1.4.0 added SNGP (5th UQ, refutes EDL mechanism prediction); v1.5.0 added 5-member EDL ensemble (strongest config: test AURC 0.1640, test acc 0.747); v1.6.0 added EDL conformal extension; v1.7.0 adds EDL KL annealing sensitivity — negative LW-CCSD margin survives every schedule (KL ∈ {5, 10, 15, 25} epochs). See [Findings](#findings) and [Roadmap](#roadmap).
 
 ---
 
@@ -317,7 +317,7 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] **HR-stratified evaluation** — 76 % of AF in high-HR bin; AURC improves in every HR tertile.
 - [x] **Cross-UQ stratification** — SNR mechanism holds across MC Dropout, Ensembles, deterministic.
 - [x] **Continuous-w (Nelder-Mead)** — grid optimum near-optimal; Pareto non-monotonicities are discretisation-and-generalisation, not optimisation, artifacts.
-- [x] **Paper draft** — 7 sections, 18 tables, 3 figures. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.7.0.pdf`. IEEE LaTeX source at `paper/main.tex`.
+- [x] **Paper draft** — 7 sections, 18 tables, 3 figures. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.8.0.pdf`. IEEE LaTeX source at `paper/main.tex`.
 - [x] **Clean ensemble methodology (v1.2.0)** — `data_seed`/`model_seed` decoupled in `scripts/train_classifier.py`; retrained with shared split + independent inits. ECE 0.064→0.052, AURC 0.2155→0.2066, LW-CCSD margin +3.2 % → +6.7 %.
 
 **Conformal completion (v1.2.0)**
@@ -350,7 +350,6 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [ ] **IEEE BSPC or J-BHI submission** after Zenodo v1.7.0 + arXiv are live.
 
 ### Methodology extensions (paper v2.0)
-- [ ] **Even tighter joint conformal bounds** — direct multivariate-beta tail bound on the joint distribution of recalls to close the remaining 1.75 % gap left after Holm step-down.
 - [ ] **Real demographic stratification** — when OBF / MAHNOB-HCI metadata becomes available.
 - [ ] **KL = ∞ (constant KL = 1) EDL sensitivity** — limit-case test for the no-margin property; only if reviewers request it.
 
@@ -380,7 +379,7 @@ If this repository contributes to your research, please cite the Zenodo preprint
   publisher    = {Zenodo},
   doi          = {10.5281/zenodo.20818623},
   url          = {https://zenodo.org/records/20818623},
-  note         = {Preprint v1.7.0 (codebase); v1.2.0 latest Zenodo snapshot. Also available on SSRN (abstract 6971878). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
+  note         = {Preprint v1.8.0 (codebase); v1.2.0 latest Zenodo snapshot. Also available on SSRN (abstract 6971878). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
 }
 ```
 
