@@ -299,50 +299,70 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 
 ## Roadmap
 
-### Done (v1.0.0 → v1.2.0)
-- [x] UQ heads: MC Dropout, Deep Ensembles, Conformal Prediction (working end-to-end on two real ECG datasets and one synthetic substrate).
-- [x] MIT-BIH UQ v1 — three UQ methods compared on a working classifier; pinned.
-- [x] MIT-BIH → synthetic rPPG synthesis pipeline (R-peak detection + asymmetric Gaussian beat template + 30 Hz downsample + noise model).
-- [x] CinC 2017 AF Challenge → synth-rPPG at 14× the MIT-BIH AF training scale (8,244 records, 45,064 segments). Three UQ methods compared, all well calibrated.
-- [x] Signal-quality-aware deferral (naive single-shared-w): 18 % aggregate AURC gain but AF recall collapses from 0.71 to 0.04 at 50 % coverage — the negative finding that motivated LW-CCSD.
-- [x] Per-class breakdown of the aggregate SQI gain (AF-collapse mechanism, quantitative SNR distributions).
-- [x] `af_immune` hand-tuned class-conditional rule — safe but conservative.
-- [x] **LW-CCSD** — Learned Class-Conditional SQI Deferral with formal AF-recall-floor constraint. Pareto frontier mapped across three UQ sources.
-- [x] **Deployment punchline:** LW-CCSD on a single-pass deterministic classifier beats the 5-model ensemble UQ-only baseline on test AURC at 1/5 the inference cost.
-- [x] **LW-CCSD on MIT-BIH classifier** — cross-dataset robustness check; the method has graceful degradation (returns w* = (0, 0, 0) on a degenerate classifier).
-- [x] **Conformal LW-CCSD** — Clopper–Pearson finite-sample lower bound on val recall; identical operating point at 90 % confidence, 0.6 % relative AURC cost at 95 % confidence.
-- [x] **SNR-stratified evaluation** — quantitative confirmation that SNR is a class proxy (88 % of AF in low-SNR tertile, 9× over base rate). Cross-regime mechanism isolated.
-- [x] **HR-stratified evaluation** — 76 % of AF concentrates in the high-HR (tachycardia) bin; AURC improves in every HR tertile; the cross-regime pattern is orthogonal to HR.
-- [x] **Cross-UQ stratification** — SNR-tertile analysis on MC Dropout and Deep Ensembles. Unifying mechanism statement holds across all three UQ sources.
-- [x] **Continuous-w optimization (Nelder–Mead)** — confirms grid optimum is near-optimal; Pareto-frontier non-monotonicities are discretisation-and-generalisation, not optimisation, artifacts.
-- [x] **Paper draft** — 7 sections, 18 tables, 3 figures, complete prose. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.7.0.pdf`. IEEE LaTeX source at `paper/main.tex` for arXiv submission.
-- [x] **Clean ensemble methodology** — `data_seed` and `model_seed` decoupled in `scripts/train_classifier.py`; ensemble retrained with shared split + independent inits. Clean methodology improves UQ quality (ECE 0.064→ 0.052, AURC 0.2155→ 0.2066) and the LW-CCSD margin (+3.2 % → +6.7 %).
-- [x] **Zenodo preprint v1.0.0** — [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347).
-- [x] **Zenodo preprint v1.2.0** — [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623) (current, supersedes v1.0.0).
-- [x] **SSRN preprint** — [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878), live on SSRN.
-- [x] **Preprints.org submission** — awaiting moderator approval.
-- [x] **CITATION.cff** with ORCID + Zenodo DOI for GitHub's "Cite this repository" button.
-- [x] **Per-split class-coverage verification utility** — `scripts/verify_split_coverage.py` rebuilds the dataset and splits using the same code path as the trainer, asserts every class is present in every split with non-trivial count, and reports per-class fractions vs the global distribution. Wired into `tests/test_split_coverage.py` so the v0 failure mode (entire class missing from a split) is caught in CI before training starts.
+### Done — methodology + paper (v1.0.0 → v1.7.0)
 
-### Up next (post-v1 paper polish)
-- [ ] **TechRxiv submission** when their migration completes; same PDF, no endorsement.
+**LW-CCSD core (v1.0.0)**
+- [x] UQ heads: MC Dropout, Deep Ensembles, Conformal Prediction (working end-to-end on two ECG datasets + synthetic substrate).
+- [x] MIT-BIH UQ v1 — three UQ methods compared on a working classifier.
+- [x] MIT-BIH → synth-rPPG synthesis pipeline (R-peak + asymmetric Gaussian beat template + 30 Hz downsample + noise).
+- [x] CinC 2017 AF Challenge → synth-rPPG at 14× MIT-BIH AF scale (45,064 segments). Three UQ methods compared, all well calibrated.
+- [x] Signal-quality-aware deferral (naive single-shared-w): +18 % aggregate AURC but AF recall collapses 0.71→0.04 at cov=0.5 — the negative finding that motivated LW-CCSD.
+- [x] Per-class breakdown of the SQI failure mode (AF-collapse mechanism, SNR distributions).
+- [x] `af_immune` hand-tuned class-conditional rule — safe but conservative.
+- [x] **LW-CCSD** — Learned Class-Conditional SQI Deferral with AF-recall-floor constraint. Pareto frontier mapped across three UQ sources.
+- [x] **Deployment punchline:** LW-CCSD on deterministic classifier (test AURC 0.1998) beats 5-model ensemble UQ-only (0.2155) at 1/5 inference cost.
+- [x] **LW-CCSD on MIT-BIH classifier** — cross-dataset robustness check.
+- [x] **Conformal LW-CCSD** — Clopper-Pearson per-class LCB; identical operating point at 90 % confidence, 0.6 % rel AURC cost at 95 %.
+- [x] **SNR-stratified evaluation** — 88 % of AF in low-SNR tertile (9× over base rate); cross-regime mechanism isolated.
+- [x] **HR-stratified evaluation** — 76 % of AF in high-HR bin; AURC improves in every HR tertile.
+- [x] **Cross-UQ stratification** — SNR mechanism holds across MC Dropout, Ensembles, deterministic.
+- [x] **Continuous-w (Nelder-Mead)** — grid optimum near-optimal; Pareto non-monotonicities are discretisation-and-generalisation, not optimisation, artifacts.
+- [x] **Paper draft** — 7 sections, 18 tables, 3 figures. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.7.0.pdf`. IEEE LaTeX source at `paper/main.tex`.
+- [x] **Clean ensemble methodology (v1.2.0)** — `data_seed`/`model_seed` decoupled in `scripts/train_classifier.py`; retrained with shared split + independent inits. ECE 0.064→0.052, AURC 0.2155→0.2066, LW-CCSD margin +3.2 % → +6.7 %.
+
+**Conformal completion (v1.2.0)**
+- [x] **Bonferroni joint conformal coverage** — family-wise P(all per-class recalls ≥ floor) ≥ 1 − α via union bound (`--conformal-joint-bonferroni`). Net cost per-class → family-wise: 2.05 % rel AURC.
+- [x] **Holm step-down joint conformal coverage** — strictly more powerful than Bonferroni at the same family-wise α; recovers 0.6 % rel AURC. Net cost: 1.75 % rel AURC.
+
+**UQ method expansion (v1.3.0 → v1.7.0)**
+- [x] **Evidential Deep Learning (EDL) — 4th UQ method (v1.3.0).** Single-pass Dirichlet head with annealed-KL Type-II MSE loss. **EDL is the strongest UQ-only baseline (test AURC 0.1725, test acc 0.739)** of all four single-checkpoint methods studied. **LW-CCSD does not help on top of EDL (−2.3 %)** because EDL absorbs signal-quality information into Dirichlet evidence directly. Paper Section 5.12 + Tables 11–12; pinned in `docs/baselines/lw_ccsd_v1/edl/findings.md`.
+- [x] **SNGP — 5th UQ method (v1.4.0).** Liu et al. 2020 distance-aware single-pass UQ. **Best test ECE of all 5 methods (0.029)** at single-pass cost. LW-CCSD gives **+3.7 %** on SNGP — **refutes the EDL mechanism prediction** that any input-conditional UQ would absorb SQI. EDL's no-margin behaviour is specific to its evidence-collapse dynamic, not generic distance-awareness. Paper Section 5.13 + Tables 13–14; pinned in `docs/baselines/lw_ccsd_v1/sngp/findings.md`.
+- [x] **EDL ensemble M=5 (v1.5.0).** Variance characterisation: per-member AURC 0.1681 ± 0.0027 (1.6 % rel spread). **EDL ensemble is the strongest configuration studied: test AURC 0.1640 (best), test acc 0.747 (best), Brier 0.422 (best)**. LW-CCSD remains structurally negative (−2.4 %) — mechanism is structural, not per-seed. Paper Section 5.14 + Tables 15–16; pinned in `docs/baselines/lw_ccsd_v1/edl_ensemble/findings.md`.
+- [x] **EDL conformal extension (v1.6.0).** Per-class, Bonferroni joint, Holm step-down joint at family-wise α=0.10 on EDL. Negative margin survives every mode: per-class −2.00 %, Bonferroni −2.65 %, Holm −2.00 %. Per-class and Holm produce identical optimum on EDL. Paper Section 5.15 + Table 17; pinned in `docs/baselines/lw_ccsd_v1/edl_conformal/findings.md`.
+- [x] **EDL KL annealing sensitivity (v1.7.0).** KL ∈ {5, 10, 15, 25} epochs. Negative margin survives every schedule (mean −2.26 % ± 0.49 %, range [−1.68 %, −2.99 %]). UQ-only AURC stable in [0.1680, 0.1736]. Paper Section 5.16 + Table 18; pinned in `docs/baselines/lw_ccsd_v1/edl_kl_sensitivity/findings.md`.
+
+**EDL claim now established at four independent levels:** empirical optimisation (Sec 5.12) · variance across init seeds (Sec 5.14) · conformal coverage at α=0.10 (Sec 5.15) · KL annealing schedule (Sec 5.16). No plausible null hypothesis remains within the EDL training framework.
+
+**Infrastructure**
+- [x] **Per-split class-coverage verification utility** — `scripts/verify_split_coverage.py` + CI test catches the v0 failure mode (entire class missing from a split) before training.
+
+**External**
+- [x] **Zenodo preprint v1.0.0** — [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347).
+- [x] **Zenodo preprint v1.2.0** — [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623).
+- [x] **SSRN preprint** — [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878), live.
+- [x] **Preprints.org submission** — awaiting moderator approval.
+- [x] **CITATION.cff** with ORCID + Zenodo DOI.
+
+### Up next — external submission (v1.7.0 PDF ready)
+- [ ] **Bump Zenodo to v1.7.0** — current published snapshot is v1.2.0; needs refresh with the EDL/SNGP additions.
+- [ ] **TechRxiv submission** when their migration completes.
 - [ ] **arXiv endorsement request** in cs.LG or eess.SP; submit LaTeX source.
-- [ ] **IEEE BSPC or J-BHI submission** after preprints are live.
+- [ ] **IEEE BSPC or J-BHI submission** after Zenodo v1.7.0 + arXiv are live.
 
 ### Methodology extensions (paper v2.0)
 - [ ] **Even tighter joint conformal bounds** — direct multivariate-beta tail bound on the joint distribution of recalls to close the remaining 1.75 % gap left after Holm step-down.
-- [ ] **SNGP** — spectral-normalized backbone + random-feature GP head (5th UQ method). The EDL mechanism prediction in Section 5.12 expects SNGP to also admit no LW-CCSD margin since its distance-aware feature norm conditions on input signal quality. Falsification target.
-- [ ] **Real demographic stratification** — when OBF / MAHNOB-HCI metadata becomes available (current proxy: SNR and HR tertiles).
+- [ ] **Real demographic stratification** — when OBF / MAHNOB-HCI metadata becomes available.
+- [ ] **KL = ∞ (constant KL = 1) EDL sensitivity** — limit-case test for the no-margin property; only if reviewers request it.
 
 ### Data scaling (paper v2.0)
 - [ ] **MAHNOB-HCI access request** (parallel face-video AF channel).
-- [ ] **Phase-2 results on OBF / MAHNOB-HCI** — pending data access. When face-video AF data arrives, LW-CCSD is the first experiment to run.
+- [ ] **Phase-2 results on OBF / MAHNOB-HCI** — pending data access. LW-CCSD is the first experiment to run.
 - [ ] **Phase-1 classifier training on MCD-rPPG healthy-cohort pulse waveforms** (revisited if useful for a robustness section).
 
-### rPPG extractor work (research-line extension)
-- [ ] **MediaPipe-based face-ROI extraction wired into the dataset pipeline** (currently used only in `scripts/validate_rppg_on_mcd.py`).
-- [ ] **Scale MCD-rPPG validation to all 600 subjects** (currently 100). Closes remaining gap to paper's 3.80 bpm POS baseline.
-- [ ] **PhysNet learned rPPG extractor** — next-step contender for the high-HR sub-harmonic-lock failure mode observed on MCD-rPPG.
+### rPPG extractor work (separate research line — next paper)
+- [ ] **MediaPipe-based face-ROI extraction wired into the dataset pipeline**.
+- [ ] **Scale MCD-rPPG validation to all 600 subjects** (currently 100). Closes gap to paper's 3.80 bpm POS baseline.
+- [ ] **PhysNet learned rPPG extractor** — for the high-HR sub-harmonic-lock failure mode observed on MCD-rPPG.
 
 ### Training infrastructure (low priority)
 - [ ] **Focal-loss / progressive-resampling training option** (replacing CE-weight scalar).
