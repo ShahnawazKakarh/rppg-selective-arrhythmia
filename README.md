@@ -2,14 +2,14 @@
 
 **Learned Class-Conditional Signal-Quality Deferral (LW-CCSD) for selective rPPG-based atrial fibrillation screening.**
 
-[![Zenodo DOI](https://img.shields.io/badge/Zenodo-10.5281%2Fzenodo.20818623-blue)](https://zenodo.org/records/20818623)
-[![SSRN](https://img.shields.io/badge/SSRN-abstract%206971878-green)](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878)
+[![Zenodo DOI](https://img.shields.io/badge/Zenodo-10.5281%2Fzenodo.20901698-blue)](https://zenodo.org/records/20901698)
+[![SSRN](https://img.shields.io/badge/SSRN-abstract%206971878-green)](https://papers.ssrn.com/abstract=6971878)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0007--4055--6563-a6ce39)](https://orcid.org/0009-0007-4055-6563)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 This repository introduces and benchmarks **LW-CCSD**, a post-hoc model-agnostic deferral policy for selective prediction in contactless atrial-fibrillation (AF) screening from remote photoplethysmography (rPPG) signals. The method learns per-predicted-class quality weights combining model confidence with spectral signal-to-noise ratio, subject to a configurable per-class recall floor, and produces a tunable Pareto frontier between selective accuracy and clinical AF-recall safety.
 
-> **Status — v1.8.0 paper draft.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.8.0.pdf`](paper/lw-ccsd-rppg-af-v1.8.0.pdf). Zenodo v1.2.0: [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623). SSRN: [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878). Initial Zenodo release v1.0.0 (superseded): [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347). v1.3.0 added EDL (4th UQ); v1.4.0 added SNGP (5th UQ, refutes EDL mechanism prediction); v1.5.0 added 5-member EDL ensemble (strongest config: test AURC 0.1640, test acc 0.747); v1.6.0 added EDL conformal extension; v1.7.0 adds EDL KL annealing sensitivity — negative LW-CCSD margin survives every schedule (KL ∈ {5, 10, 15, 25} epochs). See [Findings](#findings) and [Roadmap](#roadmap).
+> **Status — v1.8.0 paper draft.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.8.0.pdf`](paper/lw-ccsd-rppg-af-v1.8.0.pdf). **Zenodo v1.8.0 (current):** [doi.org/10.5281/zenodo.20901698](https://doi.org/10.5281/zenodo.20901698). **SSRN:** [abstract 6971878](https://papers.ssrn.com/abstract=6971878) (revised 2026-06-25 to v1.8.0). Earlier Zenodo snapshots: [v1.2.0](https://doi.org/10.5281/zenodo.20818623), [v1.0.0](https://doi.org/10.5281/zenodo.20776347). v1.8.0 spans 5 UQ methods (deterministic, MC Dropout, deep ensembles, EDL, SNGP) + EDL ensemble + full conformal arc (per-class, Bonferroni, Holm, multivariate-beta). EDL claim established at 4 independent levels (empirical, ensembling, conformal, KL annealing). See [Findings](#findings) and [Roadmap](#roadmap).
 
 ---
 
@@ -339,15 +339,17 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 **External**
 - [x] **Zenodo preprint v1.0.0** — [doi.org/10.5281/zenodo.20776347](https://doi.org/10.5281/zenodo.20776347).
 - [x] **Zenodo preprint v1.2.0** — [doi.org/10.5281/zenodo.20818623](https://doi.org/10.5281/zenodo.20818623).
-- [x] **SSRN preprint** — [abstract 6971878](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878), live.
+- [x] **Zenodo preprint v1.8.0 (current)** — [doi.org/10.5281/zenodo.20901698](https://doi.org/10.5281/zenodo.20901698).
+- [x] **SSRN preprint** — [abstract 6971878](https://papers.ssrn.com/abstract=6971878), revised 2026-06-25 to v1.8.0.
 - [x] **Preprints.org submission** — awaiting moderator approval.
 - [x] **CITATION.cff** with ORCID + Zenodo DOI.
 
-### Up next — external submission (v1.7.0 PDF ready)
-- [ ] **Bump Zenodo to v1.7.0** — current published snapshot is v1.2.0; needs refresh with the EDL/SNGP additions.
-- [ ] **TechRxiv submission** when their migration completes.
+### Up next — external submission (v1.8.0 PDF ready)
+- [x] **Zenodo v1.8.0 published** — [10.5281/zenodo.20901698](https://doi.org/10.5281/zenodo.20901698) (2026-06-26).
+- [x] **SSRN revised to v1.8.0 PDF** — 2026-06-25.
 - [ ] **arXiv endorsement request** in cs.LG or eess.SP; submit LaTeX source.
-- [ ] **IEEE BSPC or J-BHI submission** after Zenodo v1.7.0 + arXiv are live.
+- [ ] **TechRxiv submission** when their migration completes.
+- [ ] **IEEE BSPC submission** after arXiv and TechRxiv are live.
 
 ### Methodology extensions (paper v2.0)
 - [ ] **Real demographic stratification** — when OBF / MAHNOB-HCI metadata becomes available.
@@ -377,9 +379,9 @@ If this repository contributes to your research, please cite the Zenodo preprint
   year         = {2026},
   month        = {jun},
   publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.20818623},
-  url          = {https://zenodo.org/records/20818623},
-  note         = {Preprint v1.8.0 (codebase); v1.2.0 latest Zenodo snapshot. Also available on SSRN (abstract 6971878). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
+  doi          = {10.5281/zenodo.20901698},
+  url          = {https://zenodo.org/records/20901698},
+  note         = {Preprint v1.8.0 hosted on Zenodo and SSRN (abstract 6971878, revised 2026-06-25). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
 }
 ```
 
