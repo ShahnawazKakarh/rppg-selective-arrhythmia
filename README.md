@@ -9,7 +9,7 @@
 
 This repository introduces and benchmarks **LW-CCSD**, a post-hoc model-agnostic deferral policy for selective prediction in contactless atrial-fibrillation (AF) screening from remote photoplethysmography (rPPG) signals. The method learns per-predicted-class quality weights combining model confidence with spectral signal-to-noise ratio, subject to a configurable per-class recall floor, and produces a tunable Pareto frontier between selective accuracy and clinical AF-recall safety.
 
-> **Status — v1.8.0 paper draft.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.8.0.pdf`](paper/lw-ccsd-rppg-af-v1.8.0.pdf). **Zenodo v1.8.0 (current):** [doi.org/10.5281/zenodo.20901698](https://doi.org/10.5281/zenodo.20901698). **SSRN:** [abstract 6971878](https://papers.ssrn.com/abstract=6971878) (revised 2026-06-25 to v1.8.0). Earlier Zenodo snapshots: [v1.2.0](https://doi.org/10.5281/zenodo.20818623), [v1.0.0](https://doi.org/10.5281/zenodo.20776347). v1.8.0 spans 5 UQ methods (deterministic, MC Dropout, deep ensembles, EDL, SNGP) + EDL ensemble + full conformal arc (per-class, Bonferroni, Holm, multivariate-beta). EDL claim established at 4 independent levels (empirical, ensembling, conformal, KL annealing). See [Findings](#findings) and [Roadmap](#roadmap).
+> **Status — v1.9.0 paper draft.** Paper PDF: [`paper/lw-ccsd-rppg-af-v1.9.0.pdf`](paper/lw-ccsd-rppg-af-v1.9.0.pdf). **Zenodo v1.8.0 (current):** [doi.org/10.5281/zenodo.20901698](https://doi.org/10.5281/zenodo.20901698). **SSRN:** [abstract 6971878](https://papers.ssrn.com/abstract=6971878) (revised 2026-06-25 to v1.8.0). Earlier Zenodo snapshots: [v1.2.0](https://doi.org/10.5281/zenodo.20818623), [v1.0.0](https://doi.org/10.5281/zenodo.20776347). v1.8.0 spans 5 UQ methods (deterministic, MC Dropout, deep ensembles, EDL, SNGP) + EDL ensemble + full conformal arc (per-class, Bonferroni, Holm, multivariate-beta). EDL claim established at 5 independent levels (empirical, ensembling, conformal, KL annealing schedule, KL→∞ ablation). The KL→∞ ablation refines the mechanism: the no-LW-CCSD-margin property requires KL annealing, not just the Dirichlet head. See [Findings](#findings) and [Roadmap](#roadmap).
 
 ---
 
@@ -317,7 +317,7 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] **HR-stratified evaluation** — 76 % of AF in high-HR bin; AURC improves in every HR tertile.
 - [x] **Cross-UQ stratification** — SNR mechanism holds across MC Dropout, Ensembles, deterministic.
 - [x] **Continuous-w (Nelder-Mead)** — grid optimum near-optimal; Pareto non-monotonicities are discretisation-and-generalisation, not optimisation, artifacts.
-- [x] **Paper draft** — 7 sections, 18 tables, 3 figures. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.8.0.pdf`. IEEE LaTeX source at `paper/main.tex`.
+- [x] **Paper draft** — 7 sections, 18 tables (Table 18 extended), 3 figures. WeasyPrint build (`paper/build.py`) producing `paper/lw-ccsd-rppg-af-v1.9.0.pdf`. IEEE LaTeX source at `paper/main.tex`.
 - [x] **Clean ensemble methodology (v1.2.0)** — `data_seed`/`model_seed` decoupled in `scripts/train_classifier.py`; retrained with shared split + independent inits. ECE 0.064→0.052, AURC 0.2155→0.2066, LW-CCSD margin +3.2 % → +6.7 %.
 
 **Conformal completion (v1.2.0)**
@@ -330,6 +330,7 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 - [x] **EDL ensemble M=5 (v1.5.0).** Variance characterisation: per-member AURC 0.1681 ± 0.0027 (1.6 % rel spread). **EDL ensemble is the strongest configuration studied: test AURC 0.1640 (best), test acc 0.747 (best), Brier 0.422 (best)**. LW-CCSD remains structurally negative (−2.4 %) — mechanism is structural, not per-seed. Paper Section 5.14 + Tables 15–16; pinned in `docs/baselines/lw_ccsd_v1/edl_ensemble/findings.md`.
 - [x] **EDL conformal extension (v1.6.0).** Per-class, Bonferroni joint, Holm step-down joint at family-wise α=0.10 on EDL. Negative margin survives every mode: per-class −2.00 %, Bonferroni −2.65 %, Holm −2.00 %. Per-class and Holm produce identical optimum on EDL. Paper Section 5.15 + Table 17; pinned in `docs/baselines/lw_ccsd_v1/edl_conformal/findings.md`.
 - [x] **EDL KL annealing sensitivity (v1.7.0).** KL ∈ {5, 10, 15, 25} epochs. Negative margin survives every schedule (mean −2.26 % ± 0.49 %, range [−1.68 %, −2.99 %]). UQ-only AURC stable in [0.1680, 0.1736]. Paper Section 5.16 + Table 18; pinned in `docs/baselines/lw_ccsd_v1/edl_kl_sensitivity/findings.md`.
+- [x] **EDL KL→∞ ablation (v1.9.0).** Annealing removed entirely (full KL prior from epoch 1). Negative LW-CCSD margin **disappears** in the no-annealing limit: ΔAURC = +0.92 % at zero AF cost. **Refines the Section 5.12 mechanism**: EDL absorbs signal-quality information in-method *only when KL annealing is enabled* — the no-margin property is a controllable training-time consequence, not an architectural one. Paper Section 5.16 + extended Table 18; pinned in `docs/baselines/lw_ccsd_v1/edl_kl_sensitivity/findings_klinf.md`.
 
 **EDL claim now established at four independent levels:** empirical optimisation (Sec 5.12) · variance across init seeds (Sec 5.14) · conformal coverage at α=0.10 (Sec 5.15) · KL annealing schedule (Sec 5.16). No plausible null hypothesis remains within the EDL training framework.
 
@@ -353,7 +354,6 @@ Planned reporting structure (kept here as a placeholder so the eventual content 
 
 ### Methodology extensions (paper v2.0)
 - [ ] **Real demographic stratification** — when OBF / MAHNOB-HCI metadata becomes available.
-- [ ] **KL = ∞ (constant KL = 1) EDL sensitivity** — limit-case test for the no-margin property; only if reviewers request it.
 
 ### Data scaling (paper v2.0)
 - [ ] **MAHNOB-HCI access request** (parallel face-video AF channel).
@@ -381,7 +381,7 @@ If this repository contributes to your research, please cite the Zenodo preprint
   publisher    = {Zenodo},
   doi          = {10.5281/zenodo.20901698},
   url          = {https://zenodo.org/records/20901698},
-  note         = {Preprint v1.8.0 hosted on Zenodo and SSRN (abstract 6971878, revised 2026-06-25). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
+  note         = {Preprint v1.9.0 hosted on Zenodo and SSRN (abstract 6971878, revised 2026-06-25). Code at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia}
 }
 ```
 
