@@ -249,3 +249,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Personal correspondence templates + upload paste sources (kept locally)
+UPLOAD_MATERIALS_*.md
+docs/email_*_access_request.txt
