@@ -21,18 +21,22 @@ abstract: >-
   PhysioNet/CinC 2017 AF Challenge, LW-CCSD achieves a tunable
   Pareto frontier between selective accuracy and AF-recall safety
   (+4.1 percent AURC at essentially zero AF-recall cost, scaling
-  to +15.6 percent AURC at 8 percentage-point AF cost). A Clopper-
-  Pearson conformal extension provides finite-sample distribution-
-  free coverage guarantees with essentially zero operational
-  penalty (identical operating point at 90 percent confidence;
-  0.6 percent relative AURC cost at 95 percent confidence).
+  to +15.6 percent AURC at 8 percentage-point AF cost). The method
+  generalises across five UQ methods (deterministic, MC Dropout,
+  deep ensembles, Evidential Deep Learning, Spectrally-Normalised
+  Gaussian Process classifiers), with the strongest configuration
+  a 5-member EDL ensemble (test AURC 0.1640, accuracy 0.747).
+  A full conformal-coverage arc at family-wise alpha=0.10 (per-class,
+  Bonferroni joint, Holm step-down joint, multivariate-beta exact-
+  independent joint procedures) provides finite-sample distribution-
+  free safety guarantees. A novel mechanism finding: EDL with KL
+  annealing absorbs signal-quality information in-method, making
+  LW-CCSD redundant on top of EDL. The property is established at
+  five independent levels of robustness including a KL-to-infinity
+  ablation that refutes the property in the no-annealing limit.
   LW-CCSD applied to a single-pass deterministic classifier
-  achieves better selective performance than a five-model deep
-  ensemble without LW-CCSD, suggesting the method can substitute
-  for compute-expensive ensembling in deployed clinical screens.
-  Cross-UQ replication (deterministic, MC Dropout, deep ensembles)
-  and orthogonal SNR-tertile and HR-tertile stratifications confirm
-  the cross-regime mechanism. Repository includes the full
+  outperforms an unaugmented five-model deep ensemble on the
+  selective-prediction objective. Repository includes the full
   reproducibility chain: pipeline, configurations, trained
   checkpoints, per-method evaluation artefacts, paper LaTeX and
   HTML sources, and figure generation scripts.
@@ -43,20 +47,22 @@ keywords:
   - selective prediction
   - uncertainty quantification
   - conformal prediction
+  - evidential deep learning
+  - SNGP
   - deep ensembles
   - MC dropout
   - calibration
   - contactless cardiac screening
   - signal quality
   - deferral policies
-  - Clopper-Pearson lower bound
+  - KL annealing
 license: MIT
 version: "1.9.0"
-date-released: "2026-06-27"
+date-released: "2026-06-30"
 identifiers:
   - type: doi
     value: "10.5281/zenodo.20901698"
-    description: "Zenodo preprint, v1.8.0 (current snapshot)."
+    description: "Zenodo preprint, latest published snapshot (v1.8.0)."
   - type: doi
     value: "10.5281/zenodo.20818623"
     description: "Zenodo preprint, v1.2.0 snapshot (superseded)."
@@ -65,7 +71,7 @@ identifiers:
     description: "Zenodo preprint, v1.0.0 initial release (superseded)."
   - type: url
     value: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6971878"
-    description: "SSRN preprint (revised 2026-06-25 to v1.8.0)."
+    description: "SSRN preprint (abstract 6971878)."
 preferred-citation:
   type: article
   title: "Learned Class-Conditional Signal-Quality Deferral for Selective rPPG-Based Atrial Fibrillation Screening"
@@ -78,4 +84,4 @@ preferred-citation:
   month: 6
   doi: "10.5281/zenodo.20901698"
   url: "https://zenodo.org/records/20901698"
-  notes: "Preprint v1.8.0 hosted on Zenodo and SSRN (abstract 6971878, revised 2026-06-25). Code and reproducibility artefacts at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
+  notes: "v1.9.0 submitted to IEEE Journal of Biomedical and Health Informatics (June 2026, under editorial consideration). Preprint hosted on Zenodo (concept DOI 10.5281/zenodo.20681415) and SSRN (abstract 6971878). Code and reproducibility artefacts at https://github.com/ShahnawazKakarh/rppg-selective-arrhythmia"
