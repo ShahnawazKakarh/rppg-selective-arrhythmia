@@ -323,7 +323,7 @@ A small non-monotonicity (the floor-$0.55$ result has slightly better AURC than 
 \label{sec:cross_uq}
 We replicate the LW-CCSD evaluation across all five UQ sources, taking the strongest safe operating point ($\Delta \text{AF recall} \geq -0.05$) per source. Table~\ref{tab:cross_uq} reports the result.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{LW-CCSD across UQ sources, CinC test set. Strongest operating point with AF-recall cost $\leq -0.05$ per source. EDL configurations show a \emph{negative} margin --- LW-CCSD does not help, see Section~\ref{sec:edl_mechanism}.}
 \label{tab:cross_uq}
@@ -339,7 +339,7 @@ EDL (KL10)           & 0.1725 & 0.1764          & $-$2.3\,\% & $-$0.013 \\
 EDL Ensemble (M{=}5) & 0.1640 & 0.1679          & $-$2.4\,\% & $-$0.018 \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 The pattern in the classical-UQ rows (Deterministic, MC Dropout, Clean Ensemble, SNGP) is consistent with the v1 paper finding: the SQI-deferral gain scales inversely with the underlying UQ informativeness. Deterministic has the weakest confidence ranking and gets the largest gain ($+15.6\,\%$); the modern UQ heads sit between $+3.7\,\%$ and $+6.7\,\%$. The EDL rows show the opposite sign --- the margin is negative ($-2.3\,\%$ for single EDL, $-2.4\,\%$ for EDL ensemble). LW-CCSD does \emph{not} help on top of EDL; it slightly hurts. We analyse this in Section~\ref{sec:edl_mechanism}.
 
@@ -411,7 +411,7 @@ We train five EDL models with different initialisation seeds (the same procedure
 \label{sec:edl_kl_sensitivity}
 We sweep the KL annealing length over $\{5, 10, 15, 25\}$ warm-up epochs at the same data and model seeds. Table~\ref{tab:edl_kl_sensitivity} reports the per-schedule test metrics and the LW-CCSD margin.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{EDL KL annealing schedule sensitivity. The negative LW-CCSD margin holds across every annealed schedule.}
 \label{tab:edl_kl_sensitivity}
@@ -427,7 +427,7 @@ KL & Test Acc & ECE & UQ-only AURC & LW-CCSD AURC & $\Delta$ rel \\
 Mean $\pm$ std & --- & --- & 0.1714 & 0.1752 & $-$2.26 $\pm$ 0.49\,\% \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 Across the four annealed schedules: UQ-only AURC sits in $[0.168, 0.174]$ (3.3\,\% relative spread across a 5$\times$ variation in annealing length); accuracy in $[0.734, 0.742]$; ECE in $[0.124, 0.139]$. The LW-CCSD margin is uniformly negative ($[-1.68, -2.99]\,\%$). EDL is therefore robust to the specific KL annealing schedule within the annealed regime: the no-LW-CCSD-margin property is not an accidental consequence of the canonical 10-epoch choice.
 
@@ -435,7 +435,7 @@ Across the four annealed schedules: UQ-only AURC sits in $[0.168, 0.174]$ (3.3\,
 
 The result is qualitatively different from every annealed schedule. Test accuracy and ECE remain in the EDL band ($0.7382$, $0.133$); UQ-only AURC is $0.1718$, in-range. But the LW-CCSD margin \emph{disappears}: $\mathbf{w}^{*} = (0.0,\ 0.0,\ 0.3)$ at floor $0.25$ gives test AURC $0.1703$, a margin of $+0.92\,\%$ at zero AF cost (Table~\ref{tab:edl_klinf}). Without annealing the model still classifies competently but does not develop the input-quality-conditional evidence behaviour; LW-CCSD then offers a small positive margin like on classical UQ heads.
 
-\begin{table}[t]
+\begin{table*}[t]
 \centering
 \caption{KL$\to\infty$ ablation (full KL prior from epoch 1) refutes the no-LW-CCSD-margin property in the no-annealing limit.}
 \label{tab:edl_klinf}
@@ -447,7 +447,7 @@ Annealed (4-schedule mean) & 0.7377 & 0.134 & 0.1714 & 0.1752 & $-$2.26\,\% \\
 $\to\infty$ (this ablation) & 0.7382 & 0.133 & 0.1718 & \textbf{0.1703} & $\mathbf{+0.92\,\%}$ \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 Figure~\ref{fig:kl_annealing_sensitivity} visualises the KL annealing schedule and the KL$\to\infty$ refutation side-by-side.
 
