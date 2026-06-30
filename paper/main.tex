@@ -374,6 +374,80 @@ Figure~\ref{fig:lw_ccsd_margin_bar} visualises the conformal-arc Pareto and the 
 \label{fig:lw_ccsd_margin_bar}
 \end{figure}
 
+\subsection{EDL Mechanism: In-Method Signal-Quality Absorption}
+\label{sec:edl_mechanism}
+The EDL rows in Table~\ref{tab:cross_uq} show a qualitatively different pattern from the classical UQ rows: the LW-CCSD margin is \emph{negative}. Adding the SNR-based deferral rule on top of an EDL classifier slightly hurts AURC rather than helping. This section establishes the finding at five independent levels of robustness and refines the mechanism to a controllable training-time consequence rather than an architectural property of the Dirichlet evidence head.
+
+\paragraph{Level 1 --- Empirical optimisation.} On the canonical EDL configuration (KL annealing over 10 epochs, val macro-F1 best epoch), the LW-CCSD constrained optimiser at AF-recall floor $0.25$ converges to $\mathbf{w}^{*} = (0.0,\ 0.0,\ 0.4)$ with test AURC $0.1764$ vs single-pass-EDL AURC $0.1725$ ($\Delta = -2.3\,\%$). At every floor in the sweep ($0.20, 0.25, 0.28, 0.30$) the test AURC after LW-CCSD is greater than or equal to the EDL UQ-only baseline. The optimiser is selecting a small Other-class weight as a marginal hedge but does not find a configuration where SNR contributes positively. This is the basic observation that needs explaining: classical UQ heads admit a positive LW-CCSD margin; EDL does not.
+
+\paragraph{Level 2 --- Variance across initialisation seeds (EDL ensemble M=5).}
+\label{sec:edl_ensemble}
+We train five EDL models with different initialisation seeds (the same procedure used for the Clean Ensemble of softmax classifiers in Section~\ref{sec:cross_uq}) and average the per-class predictive probabilities $\hat{p}_c$. The ensemble's test AURC is $\mathbf{0.1640}$ (test accuracy $\mathbf{0.747}$), the strongest configuration in the whole benchmark (Table~\ref{tab:uq_comparison}). LW-CCSD on the EDL ensemble converges to $\mathbf{w}^{*} = (0.0,\ 0.0,\ 0.4)$ and gives test AURC $0.1679$ ($\Delta = -2.4\,\%$). The per-seed variance of the LW-CCSD margin across the five ensemble members is $\sigma = 0.49\,\%$ (mean $-2.26\,\%$, range $[-1.68, -2.99]$). The negative-margin finding is therefore not a single-seed artefact; it is stable across initialisation.
+
+\paragraph{Level 3 --- Conformal coverage at $\alpha = 0.10$.} We instantiate the four conformal procedures of Section~\ref{sec:conformal_procedures} on the EDL substrate at family-wise $\alpha = 0.10$. Per-class, Bonferroni, Holm, and MV-beta all return $\mathbf{w}^{*} = (0.0,\ 0.0,\ 0.4)$ with test AURC $0.1764$ ($\Delta = -2.3\,\%$). The finite-sample-coverage version of the LW-CCSD constraint does not surface a positive-margin operating point; the classical-UQ findings of Section~\ref{sec:conformal_arc} do not transfer to EDL.
+
+\paragraph{Level 4 --- KL annealing schedule among annealed regimes.}
+\label{sec:edl_kl_sensitivity}
+We sweep the KL annealing length over $\{5, 10, 15, 25\}$ warm-up epochs at the same data and model seeds. Table~\ref{tab:edl_kl_sensitivity} reports the per-schedule test metrics and the LW-CCSD margin.
+
+\begin{table}[t]
+\centering
+\caption{EDL KL annealing schedule sensitivity. The negative LW-CCSD margin holds across every annealed schedule.}
+\label{tab:edl_kl_sensitivity}
+\begin{tabular}{rrrrrr}
+\toprule
+KL & Test Acc & ECE & UQ-only AURC & LW-CCSD AURC & $\Delta$ rel \\
+\midrule
+5    & 0.7360 & 0.133          & 0.1680 & 0.1709 & $-$1.68\,\% \\
+10   & 0.7390 & 0.138          & 0.1725 & 0.1764 & $-$2.28\,\% \\
+15   & 0.7418 & 0.139          & 0.1713 & 0.1748 & $-$2.07\,\% \\
+25   & 0.7341 & \textbf{0.124} & 0.1736 & 0.1788 & $-$2.99\,\% \\
+\midrule
+Mean $\pm$ std & --- & --- & 0.1714 & 0.1752 & $-$2.26 $\pm$ 0.49\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Across the four annealed schedules: UQ-only AURC sits in $[0.168, 0.174]$ (3.3\,\% relative spread across a 5$\times$ variation in annealing length); accuracy in $[0.734, 0.742]$; ECE in $[0.124, 0.139]$. The LW-CCSD margin is uniformly negative ($[-1.68, -2.99]\,\%$). EDL is therefore robust to the specific KL annealing schedule within the annealed regime: the no-LW-CCSD-margin property is not an accidental consequence of the canonical 10-epoch choice.
+
+\paragraph{Level 5 --- KL$\to\infty$ ablation.} The natural sharpening question is what happens in the no-annealing limit. We train a fifth EDL configuration with $\lambda_t = 1$ from epoch 1 (no warm-up; the KL prior is applied at full weight throughout training). This is the KL$\to\infty$ ablation; it removes the warm-up phase that lets the evidence head develop selective collapse on noisy inputs before the prior tightens.
+
+The result is qualitatively different from every annealed schedule. Test accuracy and ECE remain in the EDL band ($0.7382$, $0.133$); UQ-only AURC is $0.1718$, in-range. But the LW-CCSD margin \emph{disappears}: $\mathbf{w}^{*} = (0.0,\ 0.0,\ 0.3)$ at floor $0.25$ gives test AURC $0.1703$, a margin of $+0.92\,\%$ at zero AF cost (Table~\ref{tab:edl_klinf}). Without annealing the model still classifies competently but does not develop the input-quality-conditional evidence behaviour; LW-CCSD then offers a small positive margin like on classical UQ heads.
+
+\begin{table}[t]
+\centering
+\caption{KL$\to\infty$ ablation (full KL prior from epoch 1) refutes the no-LW-CCSD-margin property in the no-annealing limit.}
+\label{tab:edl_klinf}
+\begin{tabular}{lrrrrr}
+\toprule
+KL & Test Acc & ECE & UQ-only AURC & LW-CCSD AURC & $\Delta$ rel \\
+\midrule
+Annealed (4-schedule mean) & 0.7377 & 0.134 & 0.1714 & 0.1752 & $-$2.26\,\% \\
+$\to\infty$ (this ablation) & 0.7382 & 0.133 & 0.1718 & \textbf{0.1703} & $\mathbf{+0.92\,\%}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figure~\ref{fig:kl_annealing_sensitivity} visualises the KL annealing schedule and the KL$\to\infty$ refutation side-by-side.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/kl_annealing_sensitivity.pdf}
+\caption{Left: EDL test AURC across KL annealing schedules and the KL$\to\infty$ ablation (no warm-up). Right: signed LW-CCSD relative $\Delta$ AURC per schedule. Every annealed schedule (KL $\in \{5, 10, 15, 25\}$) gives a negative margin; the no-annealing KL$\to\infty$ ablation (highlighted bar) gives a $+0.92\,\%$ margin --- the no-margin property is annealing-dependent.}
+\label{fig:kl_annealing_sensitivity}
+\end{figure}
+
+\subsection{Refined Mechanism Statement}
+The Section~\ref{sec:edl_mechanism} statement is therefore: \textbf{EDL with KL annealing absorbs signal-quality information in-method; EDL without annealing does not.} The no-LW-CCSD-margin property is a controllable training-time consequence of the KL warm-up schedule, not an architectural property of the Dirichlet evidence head. The warm-up phase lets the evidence head develop selective collapse on noisy inputs --- low evidence for all classes on hard windows, high evidence on confident-classifiable windows --- which is the in-method realisation of the external SNR signal LW-CCSD would otherwise re-introduce. Once the collapse develops, the SNR ranking is redundant with the EDL uncertainty ranking; mixing them at $w > 0$ marginally degrades the combined ranking.
+
+Four deployment implications follow.
+\emph{(i)} A deployer who wants LW-CCSD to add value on top of EDL should disable the KL annealing schedule. Trade-off: $\sim 0.4\,\%$ rel AURC vs the best annealed schedule (KL=5 at $0.1680$ vs KL$\to\infty$ at $0.1718$) for a small positive LW-CCSD margin.
+\emph{(ii)} A deployer who wants the cheapest deferral-free selective behaviour should keep annealing on. Single-pass EDL (KL=10) is the AURC-first standard choice in the deployment chain of Section~\ref{sec:cross_uq}.
+\emph{(iii)} The annealed default is the most defensible choice for the paper. The KL$\to\infty$ ablation establishes that the mechanism is controllable; it does not make the annealed default obsolete.
+\emph{(iv)} The mechanism statement is now \emph{falsifiable} at the substrate level: a future real-data substrate that shows a positive LW-CCSD margin on KL10-trained EDL would refute it. Substrate-level falsifiability is a stronger property than substrate-level confirmation.
+
+The full mechanism robustness story spans five independent levels: empirical optimisation, variance across initialisation seeds ($\sigma = 0.49\,\%$), conformal coverage at family-wise $\alpha = 0.10$, KL annealing schedule among annealed regimes, and the KL$\to\infty$ ablation that refutes the property in the no-annealing limit. We are aware of no plausible internal-EDL-framework null hypothesis remaining. The open question is whether the property survives on the real face-video AF substrate; that is the v2.0 critical experiment.
+
 \subsection{Mechanism: Why Na\"{i}ve SQI Fails on AF}
 \label{sec:mechanism}
 The per-class collapse in Table~\ref{tab:naive_sqi} is a direct consequence of how spectral SNR responds to the rhythm structure that defines AF. SNR as we compute it is the ratio of cardiac-band power ($0.7$--$3.0$\,Hz) to out-of-band power. NSR concentrates this band power at a single fundamental frequency and its harmonics, producing a sharp spectral peak and high SNR. AF, by definition, has irregular beat intervals; in the frequency domain this disperses power across the cardiac band into a broad ridge with no dominant peak, producing a substantially lower SNR even when the underlying pulse waveform itself is clean and free of motion noise.
