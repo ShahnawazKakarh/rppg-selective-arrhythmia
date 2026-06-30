@@ -116,6 +116,30 @@ Three UQ heads are evaluated against the same base classifier without architectu
 \item \emph{Split Conformal Prediction} calibrates a non-conformity threshold $\hat{q}_\alpha$ on the validation set at miscoverage $\alpha = 0.1$; the deterministic max-softmax probability is used as the continuous confidence ranking for selective evaluation, while the conformal set sizes are reported separately.
 \end{itemize}
 
+Two additional heads modify the loss or output layer of the base classifier and are trained from scratch.
+
+\paragraph{Evidential Deep Learning (EDL)} The softmax head is replaced by an evidential head that outputs non-negative evidence $\boldsymbol{e}(x) \in \mathbb{R}_{\geq 0}^{C}$ via a softplus activation. The Dirichlet concentration vector is $\boldsymbol{\alpha}(x) = \boldsymbol{e}(x) + 1$, with strength $S(x) = \sum_c \alpha_c(x)$ and mean class probability $\hat{p}_c(x) = \alpha_c(x) / S(x)$. The training objective is the Type-II maximum-likelihood loss of~\cite{sensoy2018evidential}:
+\begin{equation}
+\mathcal{L}_{\text{EDL}} = \sum_c (y_c - \hat{p}_c)^2 + \frac{\hat{p}_c (1 - \hat{p}_c)}{S + 1} + \lambda_t \cdot \mathrm{KL}\big[\mathrm{Dir}(\tilde{\boldsymbol{\alpha}}) \,\|\, \mathrm{Dir}(\mathbf{1})\big],
+\end{equation}
+where $\tilde{\boldsymbol{\alpha}}$ is $\boldsymbol{\alpha}$ with the ground-truth-class concentration set to $1$ (so the KL penalty only fires on incorrect-class evidence), and $\lambda_t$ is a KL annealing weight that ramps linearly from $0$ to $1$ over a configurable number of warm-up epochs. The standard configuration uses a $10$-epoch warm-up; we sweep this schedule in Section~\ref{sec:edl_kl_sensitivity}. At inference, the predictive uncertainty $u(x) = C / S(x) \in (0, 1]$ ranks the confidence; lower $u$ corresponds to higher confidence. We also report a $5$-member \emph{EDL ensemble} configuration that averages the predictive probabilities $\hat{p}_c$ across independently-trained EDL models (Section~\ref{sec:edl_ensemble}).
+
+\paragraph{SNGP (Spectrally-Normalised Gaussian Process)} We follow~\cite{liu2020sngp}: spectral normalisation is applied to every linear and convolutional layer of the encoder to bound the feature extractor's Lipschitz constant, and the classification head is replaced by a Gaussian-process layer with $1024$ random Fourier features and a Laplace-approximation posterior over the GP weights. At inference, the predictive mean is mean-field corrected: $\hat{p}_c(x) \propto \sigma\big(\mu_c(x) / \sqrt{1 + \pi \sigma^2_c(x) / 8}\big)$, where $\mu_c, \sigma^2_c$ are the GP-output mean and variance. The maximum mean-field-corrected probability is used as confidence. SNGP gives distance-aware uncertainty without the architectural cost of an ensemble or the loss-modification of EDL.
+
+\subsection{Conformal Joint-Coverage Procedures}
+\label{sec:conformal_procedures}
+For a deployed selective classifier with per-class recall floors $\{f_c\}_{c=1}^C$, the LW-CCSD optimiser of Eq.~(7) requires that each per-class recall on validation data satisfies $\widehat{\mathrm{recall}}^{(c)}_{\text{val}} \geq f_c$. To convert this empirical condition into a finite-sample distribution-free coverage guarantee, we replace each per-class empirical recall with its Clopper--Pearson lower confidence bound (LCB) at per-class miscoverage $\alpha_c$. The constraint becomes $\mathrm{LCB}_c^{(1 - \alpha_c)} \geq f_c$, and the question is how to set $\{\alpha_c\}$ for a desired family-wise guarantee $\Pr[\forall c: \widehat{\mathrm{recall}}^{(c)} \geq f_c] \geq 1 - \alpha$.
+
+We evaluate four procedures spanning the natural design space at a fixed family-wise $\alpha = 0.10$:
+\begin{itemize}
+\item \emph{Per-class}: $\alpha_c = \alpha$ for each class. Gives a per-class $(1 - \alpha)$-LCB but does not control family-wise coverage; loosest constraint, largest LW-CCSD margin.
+\item \emph{Bonferroni joint}: $\alpha_c = \alpha / C$. Controls family-wise coverage by the union bound: $\Pr[\forall c: \widehat{\mathrm{recall}}^{(c)} \geq f_c] \geq 1 - \sum_c \alpha_c = 1 - \alpha$. Conservative under independence; tightest constraint, smallest LW-CCSD margin.
+\item \emph{Holm step-down joint}: Sort the per-class binomial tests by p-value $p_{(1)} \leq p_{(2)} \leq \dots \leq p_{(C)}$, and accept the $k$-th hypothesis (the $k$-th class's recall meets its floor) if $p_{(k)} \leq \alpha / (C - k + 1)$. Strictly more powerful than Bonferroni at the same family-wise level; recovers some margin between per-class and Bonferroni.
+\item \emph{Multivariate-beta exact-independent joint}: Under the assumption that per-class binomial tests are independent --- which holds in our setup because val records are pre-partitioned by class label and each test is computed on disjoint trial counts --- the joint coverage factorises: $\Pr[\forall c: \widehat{\mathrm{recall}}^{(c)} \geq \mathrm{LCB}_c] = \prod_c \Pr[\widehat{\mathrm{recall}}^{(c)} \geq \mathrm{LCB}_c]$. Setting each per-class probability to $(1 - \alpha)^{1/C}$ gives the family-wise guarantee \emph{exactly}. The per-class $\alpha$ is therefore $\alpha_c = 1 - (1 - \alpha)^{1/C}$. For $C = 3$, $\alpha = 0.10$ this gives $\alpha_c = 0.0345$ vs Bonferroni's $\alpha_c = 0.0333$ --- the multivariate-beta bound is slightly more lenient than Bonferroni's union bound.
+\end{itemize}
+
+All four procedures plug into the same LW-CCSD constrained optimiser (Eq.~(7)) by replacing the empirical-recall constraint with the appropriate LCB constraint; only the LCB tightness changes.
+
 \subsection{Selective Evaluation}
 Let $\hat{p}(x)$ denote the confidence score assigned to input $x$ by a UQ method, with higher values corresponding to higher predicted reliability. For a chosen coverage $c \in (0, 1]$, the selective classifier retains the top-$\lceil cn \rceil$ predictions ranked by $\hat{p}(x)$ on a test set of $n$ samples and abstains on the rest. We report:
 \begin{itemize}
