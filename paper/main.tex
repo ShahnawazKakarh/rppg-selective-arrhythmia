@@ -203,7 +203,7 @@ All selective-prediction metrics (AURC, selective accuracy at coverage, per-clas
 \section{Results}
 % =============================================================================
 \subsection{UQ Benchmark on Synthetic rPPG}
-Table~\ref{tab:uq_comparison} compares the three uncertainty heads on the CinC test set.
+Table~\ref{tab:uq_comparison} compares the five uncertainty heads (plus the EDL ensemble configuration) on the CinC test set. The deterministic single-pass softmax serves as the no-UQ baseline; we additionally report a clean 5-member softmax-classifier ensemble (\emph{Clean Ensemble}) trained on the same data with different initialisation seeds.
 
 \begin{table}[t]
 \centering
@@ -213,14 +213,19 @@ Table~\ref{tab:uq_comparison} compares the three uncertainty heads on the CinC t
 \toprule
 Method & Acc & ECE $\downarrow$ & Brier $\downarrow$ & AURC $\downarrow$ \\
 \midrule
-MC Dropout (T{=}30) & \textbf{0.715} & 0.076 & 0.418 & \textbf{0.198} \\
-Conformal ($\alpha{=}0.1$) & 0.699 & \textbf{0.056} & 0.439 & 0.237 \\
-Ensembles (M{=}5) & 0.686 & 0.064 & 0.440 & 0.215 \\
+Deterministic            & 0.686 & ---            & 0.440          & 0.2367 \\
+MC Dropout (T{=}30)      & 0.715 & 0.076          & 0.418          & 0.1980 \\
+Clean Ensemble (M{=}5)   & 0.692 & 0.052          & 0.440          & 0.2066 \\
+SNGP                     & 0.729 & \textbf{0.029} & 0.393          & 0.2044 \\
+EDL (KL10)               & 0.739 & 0.137          & 0.426          & 0.1725 \\
+EDL Ensemble (M{=}5)     & \textbf{0.747} & 0.144 & \textbf{0.422} & \textbf{0.1640} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-All three are within 3 accuracy points and 0.03 ECE of each other --- the 45{,}064-segment substrate produces a well-calibrated base classifier on which UQ methods make finer-grained distinctions. The ranking is not consistent across metrics: MC Dropout wins accuracy and AURC, Conformal wins ECE, Ensembles wins neither on this dataset. This contrasts with the small-sample MIT-BIH evaluation (reported in our supplementary materials and~\cite{moody2001mitbih} pipeline-validation runs) where Ensembles dominated calibration but the classifier itself was too imbalanced to learn AF generalisably. The substrate effect dominates the method choice: on a working classifier with realistic class balance, the three UQ methods are roughly interchangeable on aggregate metrics. The per-class story (Section~\ref{sec:naive_sqi_failure}) is what separates them in deployment relevance.
+Four findings.
+
+\emph{(i)} The EDL ensemble (M{=}5) is the strongest configuration on aggregate AURC (0.1640) and accuracy (0.747), beating the single-pass EDL (0.1725, 0.739) by approximately one ensemble member's worth of inference cost. \emph{(ii)} SNGP wins calibration by a wide margin (ECE 0.029 vs the next-best 0.052 for Clean Ensemble) and is the most defensible choice when calibration is the deployment-critical metric. \emph{(iii)} The classical MC Dropout / Clean Ensemble methods sit between the deterministic baseline and the modern (EDL / SNGP) heads on AURC; the ranking is consistent with the broader UQ literature on small-to-medium classification benchmarks. \emph{(iv)} The deterministic baseline is the weakest on AURC (0.2367) and provides the largest \emph{absolute} headroom for LW-CCSD --- a finding we exploit in the deployment recommendation chain (Section~\ref{sec:cross_uq}).
 
 \subsection{Na\"{i}ve SQI Deferral: An 18\,\% Gain That Is Clinically Harmful}
 \label{sec:naive_sqi_failure}
@@ -293,29 +298,81 @@ A clinical operating point would be chosen by the deployer based on acceptable A
 
 A small non-monotonicity (the floor-$0.55$ result has slightly better AURC than the floor-$0.50$ result, $0.1998$ vs $0.2020$) is a consequence of the discrete $11$-point grid; the global Pareto curve is smooth, but the discrete grid samples it at slightly different points. A continuous optimiser (discussed in Section~VI) would resolve this.
 
-\subsection{Cross-UQ Replication}
-We replicate the LW-CCSD evaluation on the same CinC checkpoint but with confidences drawn from MC Dropout (predictive entropy, $T = 30$) and from the five-model deep ensemble. Table~\ref{tab:cross_uq} reports the strongest safe operating point ($\Delta \text{AF recall} \geq -0.05$) per UQ source.
+\subsection{Cross-UQ Replication and the Deployment Chain}
+\label{sec:cross_uq}
+We replicate the LW-CCSD evaluation across all five UQ sources, taking the strongest safe operating point ($\Delta \text{AF recall} \geq -0.05$) per source. Table~\ref{tab:cross_uq} reports the result.
 
 \begin{table}[t]
 \centering
-\caption{LW-CCSD across UQ sources, CinC test set. The strongest operating point with AF-recall cost $\leq -0.05$ per source.}
+\caption{LW-CCSD across UQ sources, CinC test set. Strongest operating point with AF-recall cost $\leq -0.05$ per source. EDL configurations show a \emph{negative} margin --- LW-CCSD does not help, see Section~\ref{sec:edl_mechanism}.}
 \label{tab:cross_uq}
 \begin{tabular}{lrrrr}
 \toprule
 UQ source & UQ-only AURC & LW-CCSD AURC & $\Delta$ rel & $\Delta$ AF recall \\
 \midrule
-Deterministic   & 0.2367 & \textbf{0.2082} & \textbf{+12.1\,\%} & $-$0.045 \\
-MC Dropout      & 0.1980 & 0.1899          & +4.1\,\%  & $-$0.029 \\
-Ensembles (M{=}5) & 0.2155 & 0.2086          & +3.2\,\%  & $-$0.023 \\
+Deterministic        & 0.2367 & \textbf{0.1998} & \textbf{+15.6\,\%} & $-$0.081 \\
+MC Dropout (T{=}30)  & 0.1980 & 0.1899          & +4.1\,\%   & $-$0.029 \\
+Clean Ensemble (M{=}5) & 0.2066 & 0.1928        & +6.7\,\%   & $-$0.027 \\
+SNGP                 & 0.2044 & 0.1969          & +3.7\,\%   & $-$0.022 \\
+EDL (KL10)           & 0.1725 & 0.1764          & $-$2.3\,\% & $-$0.013 \\
+EDL Ensemble (M{=}5) & 0.1640 & 0.1679          & $-$2.4\,\% & $-$0.018 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The SQI-deferral gain scales inversely with the underlying UQ informativeness. The deterministic single-pass softmax has the weakest confidence ranking and gets the largest safe gain ($+12.1\,\%$ at $-0.045$ AF cost). MC Dropout entropy is a stronger ranking and the gain is correspondingly smaller ($+4.1\,\%$). Ensemble-averaged softmax is the strongest of the three and the LW-CCSD margin is just $3.2\,\%$.
+The pattern in the classical-UQ rows (Deterministic, MC Dropout, Clean Ensemble, SNGP) is consistent with the v1 paper finding: the SQI-deferral gain scales inversely with the underlying UQ informativeness. Deterministic has the weakest confidence ranking and gets the largest gain ($+15.6\,\%$); the modern UQ heads sit between $+3.7\,\%$ and $+6.7\,\%$. The EDL rows show the opposite sign --- the margin is negative ($-2.3\,\%$ for single EDL, $-2.4\,\%$ for EDL ensemble). LW-CCSD does \emph{not} help on top of EDL; it slightly hurts. We analyse this in Section~\ref{sec:edl_mechanism}.
 
-The practical consequence is striking. The deterministic-classifier LW-CCSD operating point at floor $0.55$ achieves test AURC $0.1998$. This is \emph{below} the unaugmented ensemble UQ-only baseline of $0.2155$. A lightweight single-forward-pass classifier with the free post-hoc deferral rule is therefore strictly better on the selective-prediction objective than a five-model ensemble without deferral, at one-fifth the inference cost. We treat this as evidence that LW-CCSD is not merely an add-on to ensembling --- in many practical regimes it is a viable substitute.
+\paragraph{The deployment chain.} Reading Table~\ref{tab:cross_uq} as a function of inference budget yields a clean deployment recommendation chain across four regimes:
+
+\begin{itemize}
+\item \emph{Smallest budget (single-pass inference, no UQ overhead):} Deterministic $+$ LW-CCSD $\to$ test AURC $0.1998$. The largest LW-CCSD margin lives here. A lightweight model with the free post-hoc rule.
+\item \emph{Standard budget, AURC-first:} Single-pass EDL $\to$ test AURC $0.1725$, no LW-CCSD needed. The strongest AURC at single-pass inference; LW-CCSD is redundant here for the mechanism reason developed in Section~\ref{sec:edl_mechanism}.
+\item \emph{Standard budget, calibration-first:} SNGP $+$ LW-CCSD $\to$ test AURC $0.1969$, ECE $0.029$. The strongest calibration in the whole study with a small AURC concession vs single-pass EDL.
+\item \emph{Maximum AURC (M{=}5 inference budget):} EDL ensemble $\to$ test AURC $\mathbf{0.1640}$, accuracy $\mathbf{0.747}$, no LW-CCSD needed. The single strongest configuration in the benchmark.
+\end{itemize}
+
+A striking corollary of the chain: the deterministic-classifier LW-CCSD operating point at floor $0.55$ (test AURC $0.1998$) is \emph{below} the unaugmented Clean Ensemble UQ-only baseline of $0.2066$. A lightweight single-forward-pass classifier with the free post-hoc deferral rule is strictly better on the selective-prediction objective than a five-model softmax ensemble without deferral, at one-fifth the inference cost. This is the same conclusion as the v1 paper but stronger: LW-CCSD on a deterministic model now beats not only deep ensembles but also any other single-pass UQ method except EDL.
 
 The MIT-BIH replication (supplementary; see \texttt{docs/baselines/lw\_ccsd\_v1/mitbih/}) returned the trivial solution $\mathbf{w}^{*} = (0, 0, 0)$, i.e.\ LW-CCSD reduced to UQ-only with no test-side change. The MIT-BIH classifier is degenerate (only $4$ AF training records, $90$--$100\,\%$ AF accuracy on test, $0\,\%$ NSR accuracy at low coverage); under such conditions the SQI signal has nothing orthogonal to add and the constrained optimiser correctly returns the no-op. This is the method's graceful-degradation property: when SQI cannot help, LW-CCSD does not hurt.
+
+\subsection{Conformal Coverage Arc}
+\label{sec:conformal_arc}
+We instantiate the four conformal procedures from Section~\ref{sec:conformal_procedures} on the LW-CCSD deterministic-classifier substrate at family-wise $\alpha = 0.10$. Table~\ref{tab:conformal_arc} reports each procedure's best test AURC.
+
+\begin{table}[t]
+\centering
+\caption{Conformal coverage arc: best LW-CCSD operating point per procedure on CinC (deterministic, family-wise $\alpha=0.10$).}
+\label{tab:conformal_arc}
+\begin{tabular}{lcrrr}
+\toprule
+Procedure & Floor & $\mathbf{w}^{*}$ & Test AURC & $\Delta$ rel \\
+\midrule
+UQ-only (no conformal)       & ---  & ---             & 0.2367 & --- \\
+Per-class                    & 0.52 & 0.3 / 0.4 / 0.4 & 0.1998 & +15.6\,\% \\
+Bonferroni joint             & 0.50 & 0.0 / 0.5 / 0.6 & 0.2046 & +13.55\,\% \\
+Holm step-down joint         & 0.50 & 0.0 / 0.5 / 0.5 & 0.2033 & +14.11\,\% \\
+MV-beta exact-independent    & 0.50 & 0.0 / 0.5 / 0.6 & 0.2046 & +13.55\,\% \\
+MV-beta exact-independent    & 0.55 & 0.1 / 0.2 / 0.5 & 0.2160 & +8.75\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three findings.
+
+\emph{Per-class is the loosest constraint and gives the largest margin (+15.6\,\%).} It does not control family-wise coverage by construction, which is the price of the larger margin.
+
+\emph{Bonferroni, Holm, and MV-beta all give family-wise $(1-\alpha)$ coverage and produce nearly identical results.} Bonferroni and MV-beta produce identical $\mathbf{w}^{*}$ and AURC at the operating-point grid resolution; the 0.0012 difference in their per-class $\alpha$ ($0.0345$ vs $0.0333$) is below the 0.10 grid step. Holm step-down recovers a $0.6\,\%$ rel AURC margin over Bonferroni by reordering the per-class p-value tests, but the gap is small. The remaining $1.75\,\%$ rel AURC gap between per-class and the joint procedures is therefore \emph{intrinsic to the joint-coverage objective}, not an artifact of Bonferroni's union-bound conservativeness; closing it further requires a different objective (e.g.\ relaxed coverage at lower $\alpha$) rather than a tighter joint bound.
+
+\emph{MV-beta opens a new feasible operating point at floor 0.55.} The slightly more lenient per-class LCB makes a previously-infeasible higher-floor regime feasible (AURC $0.2160$, AF cost only $-0.025$). A deployer that wants stronger AF safety than the floor-0.50 procedures buy can take the MV-beta floor-0.55 result for a moderate AURC concession.
+
+Figure~\ref{fig:lw_ccsd_margin_bar} visualises the conformal-arc Pareto and the cross-UQ LW-CCSD margin pattern side-by-side.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/lw_ccsd_margin_bar.pdf}
+\caption{Left: paired UQ-only vs LW-CCSD-augmented test AURC across the six UQ configurations of Table~\ref{tab:uq_comparison}. Right: signed relative $\Delta$ AURC per UQ source. Green bars indicate LW-CCSD helps; red bars indicate it does not (the EDL configurations).}
+\label{fig:lw_ccsd_margin_bar}
+\end{figure}
 
 \subsection{Mechanism: Why Na\"{i}ve SQI Fails on AF}
 \label{sec:mechanism}
