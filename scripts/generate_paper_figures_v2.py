@@ -39,10 +39,10 @@ CONFIGS = [
      RUNS / "synth_rppg_cinc/eval_conformal/predictions.csv",
      "#4477AA"),
     ("MC Dropout (T=30)",
-     RUNS / "synth_rppg_cinc/eval_mcdropout/predictions.csv",
+     RUNS / "synth_rppg_cinc/eval_mc_dropout/predictions.csv",
      "#EE6677"),
     ("Clean Ensemble (M=5)",
-     RUNS / "synth_rppg_cinc/eval_clean_ensemble/predictions.csv",
+     RUNS / "synth_rppg_cinc_clean_ens1/eval_ensembles/predictions.csv",
      "#228833"),
     ("SNGP",
      RUNS / "synth_rppg_cinc_sngp/eval_sngp/predictions.csv",
@@ -145,7 +145,7 @@ def fig_reliability_diagrams() -> None:
             continue
 
         # Max-class probability vs accuracy
-        probs = df[[c for c in df.columns if c.startswith("prob_")]].to_numpy()
+        probs = df[[c for c in df.columns if c.startswith("p_")]].to_numpy()
         if probs.shape[1] == 0:
             # Fallback: derive from pred + label
             ax.text(0.5, 0.5, "no per-class probs",
@@ -198,7 +198,7 @@ def fig_risk_coverage_overlay() -> None:
         if df is None:
             continue
         # Compute risk-coverage curve from confidences and correctness
-        prob_cols = [c for c in df.columns if c.startswith("prob_")]
+        prob_cols = [c for c in df.columns if c.startswith("p_")]
         if not prob_cols:
             continue
         conf = df[prob_cols].to_numpy().max(axis=1)
