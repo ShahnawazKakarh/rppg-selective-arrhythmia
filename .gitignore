@@ -253,3 +253,15 @@ __marimo__/
 # Personal correspondence templates + upload paste sources (kept locally)
 UPLOAD_MATERIALS_*.md
 docs/email_*_access_request.txt
+
+# LaTeX build artefacts (paper/main.pdf is rebuilt by GitHub Actions; do not commit local builds)
+paper/main.aux
+paper/main.bbl
+paper/main.blg
+paper/main.fdb_latexmk
+paper/main.fls
+paper/main.log
+paper/main.out
+paper/main.synctex.gz
+paper/main.toc
+paper/main.pdf

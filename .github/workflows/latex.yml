@@ -1,0 +1,61 @@
+name: Build IEEE LaTeX paper
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'paper/main.tex'
+      - 'paper/refs.bib'
+      - 'paper/figures/**'
+      - '.github/workflows/latex.yml'
+  pull_request:
+    paths:
+      - 'paper/main.tex'
+      - 'paper/refs.bib'
+      - 'paper/figures/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile IEEE main.tex
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: paper
+          latexmk_use_xelatex: false
+          latexmk_shell_escape: false
+          args: -pdf -bibtex -file-line-error -halt-on-error -interaction=nonstopmode
+          extra_system_packages: |
+            inkscape
+
+      - name: Verify PDF was produced
+        run: |
+          if [ ! -f paper/main.pdf ]; then
+            echo "ERROR: paper/main.pdf was not generated"
+            exit 1
+          fi
+          ls -lh paper/main.pdf
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lw-ccsd-rppg-af-ieee-${{ github.sha }}
+          path: paper/main.pdf
+          retention-days: 90
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: latex-build-logs-${{ github.sha }}
+          path: |
+            paper/main.log
+            paper/main.blg
+            paper/main.aux
+          retention-days: 14

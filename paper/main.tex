@@ -227,6 +227,27 @@ Four findings.
 
 \emph{(i)} The EDL ensemble (M{=}5) is the strongest configuration on aggregate AURC (0.1640) and accuracy (0.747), beating the single-pass EDL (0.1725, 0.739) by approximately one ensemble member's worth of inference cost. \emph{(ii)} SNGP wins calibration by a wide margin (ECE 0.029 vs the next-best 0.052 for Clean Ensemble) and is the most defensible choice when calibration is the deployment-critical metric. \emph{(iii)} The classical MC Dropout / Clean Ensemble methods sit between the deterministic baseline and the modern (EDL / SNGP) heads on AURC; the ranking is consistent with the broader UQ literature on small-to-medium classification benchmarks. \emph{(iv)} The deterministic baseline is the weakest on AURC (0.2367) and provides the largest \emph{absolute} headroom for LW-CCSD --- a finding we exploit in the deployment recommendation chain (Section~\ref{sec:cross_uq}).
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/confusion_matrices_grid.pdf}
+\caption{Confusion matrices on the CinC test set ($n{=}6{,}750$) across the six UQ configurations of Table~\ref{tab:uq_comparison}. Per-class structure is broadly consistent: NSR dominates by class prevalence, AF is the smallest class and the dominant error source on the off-diagonal, and the EDL configurations show the cleanest AF block.}
+\label{fig:confusion_matrices}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/reliability_diagrams_grid.pdf}
+\caption{Reliability diagrams across the six UQ configurations, with per-method Expected Calibration Error (ECE) annotated. SNGP achieves the tightest fit to the diagonal (ECE $0.029$); the EDL configurations are mildly over-confident at high probability (ECE $\sim 0.14$) but recover competitive AURC despite the calibration gap.}
+\label{fig:reliability_diagrams}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/risk_coverage_overlay.pdf}
+\caption{Risk-coverage curves for all six UQ configurations on the CinC test set. Lower is better. EDL Ensemble (M{=}5) dominates across the entire coverage range, with single-pass EDL the strongest single-forward-pass option. The deterministic baseline is the weakest, leaving the most headroom for LW-CCSD augmentation.}
+\label{fig:risk_coverage}
+\end{figure}
+
 \subsection{Na\"{i}ve SQI Deferral: An 18\,\% Gain That Is Clinically Harmful}
 \label{sec:naive_sqi_failure}
 We next combine model confidence with the spectral SNR feature via a single shared weight $w$ (the na\"{i}ve SQI rule in our taxonomy). Sweeping $w$ on the CinC test set yields a monotone improvement in aggregate AURC up to $w = 0.70$, where the AURC reaches $0.1942$ --- an $18.0\,\%$ relative improvement over the UQ-only baseline of $0.2367$. By the aggregate metric this is the largest single-feature gain we observe anywhere in this work.
