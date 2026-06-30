@@ -285,7 +285,7 @@ The mechanism is structural rather than accidental, and we analyse it in Section
 \subsection{LW-CCSD: The Pareto Frontier}
 LW-CCSD addresses this by learning a per-predicted-class weight vector $\mathbf{w}^{*}$ on the validation set subject to an AF-recall floor. We fix the constraint coverage at $c_0 = 0.50$ and sweep the AF-recall floor; results on the CinC test set are in Table~\ref{tab:pareto}.
 
-\begin{table}[t]
+\begin{table*}[!t]
 \centering
 \caption{LW-CCSD Pareto frontier on synth-rPPG CinC test set (deterministic classifier, snr\_db, constraint coverage $0.50$).}
 \label{tab:pareto}
@@ -304,7 +304,7 @@ UQ-only (baseline) & --- & 0.2367 & --- & ~0.000 \\
 Na\"{i}ve SQI ($w{=}0.7$) & shared & 0.1942 & +18.0\,\% & $-$0.664 \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 At the strictest floor we evaluated ($0.60$ on validation, conservative against val UQ-only AF recall of $0.602$), the learned weight is essentially zero on the AF and Other classes and modest on NSR --- the optimiser is barely able to add any SQI weighting while respecting the constraint. The resulting test AURC is $0.2270$, a $4.1\,\%$ improvement over UQ-only, with AF recall almost perfectly preserved (delta $-0.004$). At the next-tighter floor of $0.58$ the optimiser opens up the AF and Other weights and recovers a $12.1\,\%$ AURC improvement at $4.5$ percentage-point AF cost. The frontier continues monotonically: $15.6\,\%$ AURC at $8.1$\,pp AF cost (floor $0.55$); $17.3\,\%$ AURC at $22.0$\,pp AF cost (floor $0.40$); and finally na\"{i}ve SQI ($18.0\,\%$ AURC at $66.4$\,pp AF cost) as the asymptote at zero safety.
 
@@ -360,7 +360,7 @@ The MIT-BIH replication (supplementary; see \texttt{docs/baselines/lw\_ccsd\_v1/
 \label{sec:conformal_arc}
 We instantiate the four conformal procedures from Section~\ref{sec:conformal_procedures} on the LW-CCSD deterministic-classifier substrate at family-wise $\alpha = 0.10$. Table~\ref{tab:conformal_arc} reports each procedure's best test AURC.
 
-\begin{table}[t]
+\begin{table*}[!t]
 \centering
 \caption{Conformal coverage arc: best LW-CCSD operating point per procedure on CinC (deterministic, family-wise $\alpha=0.10$).}
 \label{tab:conformal_arc}
@@ -376,7 +376,7 @@ MV-beta exact-independent    & 0.50 & 0.0 / 0.5 / 0.6 & 0.2046 & +13.55\,\% \\
 MV-beta exact-independent    & 0.55 & 0.1 / 0.2 / 0.5 & 0.2160 & +8.75\,\% \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 Three findings.
 
